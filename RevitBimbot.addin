@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>RevitBimbot</Name>
+    <Assembly>C:\Program Files\RevitBimbot\RevitBimbot.dll</Assembly>
+    <AddInId>a694f098-20d5-42c2-a8a0-ac7ae6857c24</AddInId>
+    <FullClassName>Bimbot.RevitBimbot</FullClassName>
+    <VendorId>nl.tno</VendorId>
+    <VendorDescription>TNO, www.tno.nl</VendorDescription>
+    <VisibilityMode>NotVisibleInFamily</VisibilityMode>
+    <VisibilityMode>NotVisibleWhenNoActiveDocument</VisibilityMode>
+  </AddIn>
+</RevitAddIns>

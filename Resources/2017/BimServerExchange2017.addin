@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RevitAddIns>
+  <AddIn Type="Application">
+    <Name>BimServer Exchange</Name>
+    <Assembly>C:\Program Files\BimServerEx\Release2017\BimServerExchange.dll</Assembly>
+    <AddInId>42FE3235-8B8F-4790-91C8-FB985657FCB0</AddInId>
+    <FullClassName>BimServerExchange.BimServerExchangeLoader</FullClassName>
+    <VendorId>ICN Development</VendorId>
+  </AddIn>
+</RevitAddIns>

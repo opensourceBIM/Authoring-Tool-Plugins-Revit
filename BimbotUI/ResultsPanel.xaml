@@ -1,0 +1,95 @@
+﻿<Page
+        xmlns:scm="clr-namespace:System.ComponentModel;assembly=WindowsBase"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:dat="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:xctk="http://schemas.xceed.com/wpf/xaml/toolkit"
+        xmlns:System="clr-namespace:System;assembly=mscorlib"
+        x:Class="Bimbot.BimbotUI.ResultsPanel"
+        Title="Dockable Dialogs"  Height="500" Width="200"
+        x:Name="RevitBimbot"  Background="LightGray">
+    <Grid Margin="0,0,0,2">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="3"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <ListView x:Name="issuesList" Grid.Row="0" SelectionChanged="IssuesList_SelectionChanged" MouseDoubleClick="IssuesList_DoubleClick">
+            <ListView.ItemTemplate>
+                <DataTemplate>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="auto" />
+                            <RowDefinition Height="auto" />
+                            <RowDefinition Height="auto" />
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="auto" />
+                            <ColumnDefinition Width="1*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid Grid.RowSpan="3" MaxWidth="75" MaxHeight="60" HorizontalAlignment="Stretch">
+                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                <Image Source="{Binding Path = issueData.Viewpoints[0].SnapshotRef}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
+                            </StackPanel>
+                        </Grid>
+                        <Grid Grid.Row="0" Grid.Column="1">
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding title}" />
+                        </Grid>
+                        <Grid Grid.Row="1" Grid.Column="1">
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding date}" />
+                        </Grid>
+                        <Grid Grid.Row="2" Grid.Column="1">
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding service}" />
+                        </Grid>
+                    </Grid>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+        <GridSplitter VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Grid.Row="1" Height="3" Cursor="SizeNS"/>
+        <TextBlock x:Name="textIssue" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <TabControl x:Name="bcfIssue" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <TabItem Header="Topic">
+                <xctk:PropertyGrid x:Name="topicItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False"/>
+            </TabItem>
+            <TabItem Header="Comments">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="22"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <ComboBox x:Name="commentCombo" Height="22" VerticalAlignment="Top" SelectionChanged="commentCombo_SelectionChanged">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Date}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <xctk:PropertyGrid Grid.Row="1" x:Name="commentItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False"/>
+                </Grid>
+            </TabItem>
+            <TabItem Header="Viewpoints">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="22"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <ComboBox Grid.Row="0" x:Name="viewpointCombo" Height="22" VerticalAlignment="Top" Grid.ColumnSpan="2" SelectionChanged="viewpointCombo_SelectionChanged">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding Guid}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <xctk:PropertyGrid  Grid.Row="1" x:Name="viewpointItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False" Grid.ColumnSpan="2"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
+    </Grid>
+</Page>
+
+
+

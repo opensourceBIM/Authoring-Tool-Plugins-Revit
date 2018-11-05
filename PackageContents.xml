@@ -1,0 +1,8 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ApplicationPackage SchemaVersion="1.0" AppVersion="15.12.02" ProductCode="b57c480f-24f5-4fbf-804c-7df86c770305">
+  <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2018" SeriesMax="R2018" />
+  <Components Description="2016">
+    <RuntimeRequirements OS="Win64" Platform="Revit" SeriesMin="R2018" SeriesMax="R2018" />
+    <ComponentEntry AppName="BimServerExchange" ModuleName="./BimServerExchange.addin"></ComponentEntry>
+  </Components>
+</ApplicationPackage>
