@@ -10,6 +10,7 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.ExtensibleStorage;
+using Autodesk.Windows;
 using System.Collections.Generic;
 using Bimbot.BimbotUI;
 using Autodesk.Revit.UI.Events;
@@ -20,6 +21,7 @@ using Bimbot.ExternalEvents;
 using System.Linq;
 using System.Windows;
 using System.ComponentModel;
+using System.Runtime.InteropServices;
 
 namespace Bimbot
 {
@@ -40,25 +42,17 @@ namespace Bimbot
 
       #region local app
       private static RevitBimbot curApp;
+
       public static Schema Schema { get; private set; }
       public static Schema ServiceSchema { get; private set; }
       //      public static List<Service> services { get; private set; } = new List<Service>();
 
-      private static adWin.RibbonButton toggleResultPanel;
-      private static adWin.RibbonButton toggleServicesPanel;
+      public static adWin.RibbonButton toggleResultPanel;
+      public static adWin.RibbonButton toggleServicesPanel;
 
       #endregion
 
       #region fields
-      //      RibbonPanel managePanel;
-      //      RibbonPanel triggerPanel;
-      //      RibbonPanel aboutPanel;
-      //      RibbonPanel dockPanel;
-
-      //      PushButton setupButton;
-      //      PushButton runAllButton;
-      //      PushButton aboutButton;
-
       UIControlledApplication uiApplication;
       
       ResultsPanel DockableResultPanel = null;
@@ -78,7 +72,10 @@ namespace Bimbot
       }
 
 
-      
+
+
+
+
       public Result OnStartup(UIControlledApplication application)
 		{
          Schema = null;
@@ -86,35 +83,6 @@ namespace Bimbot
 
          uiApplication = application;
 
-//         string tabName = "Bimbot Services";
-//         string assembly = Assembly.GetExecutingAssembly().Location;
-
-
-         // Create the menu tab
-//         application.CreateRibbonTab(tabName);
-
-         // Create the panels within the tab
-/*			managePanel = application.CreateRibbonPanel(tabName, "Manage");
-         triggerPanel = application.CreateRibbonPanel(tabName, "Run");
-         aboutPanel = application.CreateRibbonPanel(tabName, "About");
-
-         // Create the buttons within the panels
-         aboutButton = aboutPanel.AddItem(new PushButtonData("About", "About", assembly, "Bimbot.AboutAddin")) as PushButton;
-         aboutButton.ToolTip = "About this Addin";
-         SetImage(aboutButton, Properties.Resources.BIMserver_Info);
-
-         setupButton = managePanel.AddItem(new PushButtonData("Add", "Add", assembly, "Bimbot.ServiceAdd")) as PushButton;
-         setupButton.ToolTip = "Add new bimbot services";
-         SetImage(setupButton, Properties.Resources.BIMserver_BimBot);
-
-         setupButton = managePanel.AddItem(new PushButtonData("Modify", "Modify", assembly, "Bimbot.ServiceModify")) as PushButton;
-         setupButton.ToolTip = "Modify existing bimbot services";
-         SetImage(setupButton, Properties.Resources.BIMserver_BimBot);
-        
-         runAllButton = triggerPanel.AddItem(new PushButtonData("All", "All", assembly, "Bimbot.ServiceRunAll")) as PushButton;
-         runAllButton.ToolTip = "Run all the button triggered services";
-         SetImage(runAllButton, Properties.Resources.BIMserver_BimBot);
-*/
          // Create an event to perform a change of the view
          var changeViewHandler = new ExtEvntChangeView();
          var changeViewEvent = ExternalEvent.Create(changeViewHandler);
@@ -122,30 +90,26 @@ namespace Bimbot
          var changeDocumentHandler = new ExtEvntChangeDocument();
          var changeDocumentEvent = ExternalEvent.Create(changeDocumentHandler);
 
+         var runServicesHandler = new ExtEvntRunServices();
+         var runServicesEvent = ExternalEvent.Create(runServicesHandler);
+
+         var ifcImportHandler = new ExtEvntImportIfcSnippet();
+         var ifcImportEvent = ExternalEvent.Create(ifcImportHandler);
+
          // Create The DockablePanels for showing the service results and services
-         DockableResultPanel = new ResultsPanel(changeViewEvent, changeViewHandler);
-         DockableServicesPanel = new ServicesPanel(changeDocumentEvent, changeDocumentHandler);
+         DockableResultPanel = new ResultsPanel(changeViewEvent, changeViewHandler, ifcImportEvent, ifcImportHandler);
+         DockableServicesPanel = new ServicesPanel(changeDocumentEvent, changeDocumentHandler, runServicesEvent, runServicesHandler, ifcImportEvent);
 
-         DockablePaneProviderData data = new DockablePaneProviderData();
-         data.FrameworkElement = DockableResultPanel as System.Windows.FrameworkElement;
-         data.InitialState = new DockablePaneState();
-         data.InitialState.DockPosition = DockPosition.Tabbed;
-         data.InitialState.TabBehind = DockablePanes.BuiltInDockablePanes.ProjectBrowser;
-         
-         data = new DockablePaneProviderData();
-         data.FrameworkElement = DockableServicesPanel as System.Windows.FrameworkElement;
-         data.InitialState = new DockablePaneState();
-         data.InitialState.DockPosition = DockPosition.Tabbed;
-         data.InitialState.TabBehind = DockablePanes.BuiltInDockablePanes.ProjectBrowser;
-
-//         DockablePaneId dpid = new DockablePaneId(OutputPanelGuid);
          application.RegisterDockablePane(OutputPaneId, "BIM Bot results", DockableResultPanel as IDockablePaneProvider);
-//         dpid = new DockablePaneId(ServicePanelGuid);
          application.RegisterDockablePane(ServicePaneId, "BIM Bot services", DockableServicesPanel as IDockablePaneProvider);
-         
+
+
+
          try
          {
             // Register events
+            application.DockableFrameFocusChanged += new EventHandler<DockableFrameFocusChangedEventArgs>(Application_DockableFrameFocusChanged);
+            application.DockableFrameVisibilityChanged += new EventHandler<DockableFrameVisibilityChangedEventArgs>(Application_DockableFrameVisibilityChanged);
             application.ControlledApplication.DocumentOpened += new EventHandler<DocumentOpenedEventArgs>(Application_DocumentOpened);
             application.ControlledApplication.DocumentClosing += new EventHandler<DocumentClosingEventArgs>(Application_DocumentClosing);
             application.ViewActivated += new EventHandler<ViewActivatedEventArgs>(Application_ViewActivated);
@@ -162,14 +126,71 @@ namespace Bimbot
       public Result OnShutdown(UIControlledApplication application)
       {
          // remove in startup added events
-         application.ControlledApplication.DocumentOpened -= Application_DocumentOpened;
+         application.DockableFrameFocusChanged      -= Application_DockableFrameFocusChanged;
+         application.DockableFrameVisibilityChanged -= Application_DockableFrameVisibilityChanged;
+         application.ControlledApplication.DocumentOpened  -= Application_DocumentOpened;
+         application.ControlledApplication.DocumentClosing -= Application_DocumentClosing;
+         application.ViewActivated -= Application_ViewActivated;
 
          // Remove the command binding on shutdown
          //return base.OnShutdown(application);
-
          return Result.Succeeded;
       }
 
+      public static void UpdateServicesPanel()
+      {
+         curApp.DockableServicesPanel.UpdateView();         
+      }
+
+      public static void UpdateResultPanel()
+      {
+         curApp.DockableResultPanel.UpdateView();
+      }
+
+
+      void Application_DockableFrameFocusChanged(object sender, DockableFrameFocusChangedEventArgs e)
+      {
+         if (!e.FocusGained)
+            return;
+
+         if (e.PaneId == OutputPaneId)
+         {
+            DockableResultPanel.UpdateView();
+         }
+         else if (e.PaneId == ServicePaneId)
+         {
+            DockableServicesPanel.UpdateView();
+         }
+      }
+
+
+      void Application_DockableFrameVisibilityChanged(object sender, DockableFrameVisibilityChangedEventArgs e)
+      {
+         if (e.PaneId == OutputPaneId)
+         {
+            toggleResultPanel.IsChecked = e.DockableFrameShown;
+            DockableResultPanel.UpdateView();
+         }
+         else if (e.PaneId == ServicePaneId)
+         {
+            toggleServicesPanel.IsChecked = e.DockableFrameShown;
+            DockableServicesPanel.UpdateView();
+         }
+      }
+
+      private void BimbotDocumentChanged()
+      {
+         DockableResultPanel.UpdateView();
+         DockableServicesPanel.UpdateView();
+      }
+
+
+      public static void EmulateImportIfc()
+      {
+         TestUIForm form = new TestUIForm();
+         form.Setup(adWin.ComponentManager.Ribbon);
+         form.Show();
+      }
 
 
       public Result AddViewToggleButton()
@@ -223,7 +244,7 @@ namespace Bimbot
                         toggleServicesPanel.ShowToolTipOnDisabled = false;
                         toggleServicesPanel.Text = "Bimbot services";
                         toggleServicesPanel.ToolTip = "Show the Bimbots services panel";
-                        toggleServicesPanel.PropertyChanged += new System.ComponentModel.PropertyChangedEventHandler(changedServices);
+//                        toggleServicesPanel.HostEvent += new System.ComponentModel.PropertyChangedEventHandler(changedServices);
                         ((adWin.RibbonListButton)listBut).Items.Insert(((adWin.RibbonListButton)listBut).Items.Count - 3, toggleServicesPanel);
                         adWin.ComponentManager.UIElementActivated += new EventHandler<adWin.UIElementActivatedEventArgs>(ComponentManager_UIElementActivated);
 
@@ -273,42 +294,33 @@ namespace Bimbot
             // Find or add Schema
             FindOrCreateSchema(args.Document);
 
-//            if (args.Status == RevitAPIEventStatus.Succeeded)
-//            {
-               DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
-               DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
-//            }
-
-            //            outputPane.Show();
-            //            servicePane.Show();
-            //            DockableResultPanel.Visibility = System.Windows.Visibility.Visible;
-            //            DockableServicesPanel.Visibility = System.Windows.Visibility.Visible;
-         }
-      }
-
-      public void changedServices(object sender, PropertyChangedEventArgs args)
-      {
-         string str;
-         if (args.PropertyName == "checkbox")
-         {
-            str = args.ToString();
+            DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
+            DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
          }
       }
 
 
       public void Application_DocumentOpened(object sender, DocumentOpenedEventArgs args)
       {
+         if (args.Document.IsLinked)
+            return;
+
          try
          {
             // Find or add Schema
             FindOrCreateSchema(args.Document);
 
             openedDocuments.Add(args.Document, new BimbotDocument(args.Document));
-
             outputPane = uiApplication.GetDockablePane(OutputPaneId);
             servicePane = uiApplication.GetDockablePane(ServicePaneId);
             toggleResultPanel.IsChecked = true;
+            toggleResultPanel.IsEnabled = true;
             toggleServicesPanel.IsChecked = true;
+            toggleServicesPanel.IsEnabled = true;
+
+            //Temp insert fixed service
+//            openedDocuments[args.Document].AddService(new Service(6, "Limestone Brickalizer", "Generate brick distribution for limestone walls", "ifcanalysis", null, null, null, null, "http://ec2-18-218-56-112.us-east-2.compute.amazonaws.com/"));
+//            openedDocuments[args.Document].registeredServices[0].soid = -1;
 
             DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
             DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
@@ -440,23 +452,6 @@ namespace Bimbot
          {
             Console.WriteLine(e);
          }
-      }
-   }
-
-   /// <summary>
-   /// You can only register a dockable dialog in "Zero doc state"
-   /// </summary>
-   public class AvailabilityNoOpenDocument : IExternalCommandAvailability
-   {
-      public bool IsCommandAvailable(
-        UIApplication a,
-        CategorySet b)
-      {
-         if (a.ActiveUIDocument == null)
-         {
-            return true;
-         }
-         return false;
       }
    }
 }

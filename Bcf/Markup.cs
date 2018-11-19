@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Media.Imaging;
 using System.Xml.Serialization;
@@ -387,6 +388,9 @@ namespace Bimbot.Bcf
       private string snippetTypeField;
 
       private bool isExternalField;
+
+      [XmlIgnore]
+      public Stream RefData { get; set; }
 
       public BimSnippet()
       {

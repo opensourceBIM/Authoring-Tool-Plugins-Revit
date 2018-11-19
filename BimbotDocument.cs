@@ -4,6 +4,7 @@ using Autodesk.Revit.UI;
 using Bimbot.Objects;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -13,8 +14,8 @@ namespace Bimbot
 {
    public class BimbotDocument
    {
-      public Document      revitDocument;
-      public List<Service> registeredServices;
+      public Document revitDocument { get; }
+      public List<Service> registeredServices { get; }
       private List<Task>   runningServices;
 
       private CancellationTokenSource cancellationToken;

@@ -53,7 +53,6 @@ namespace Bimbot.ExternalEvents
 
       private void UpdateService()
       {
-
          // Add the configuration to the revit file as well (make triggering work on reopening the document)
          Transaction transaction = new Transaction(curDoc, "tAddEntity");
          transaction.Start();

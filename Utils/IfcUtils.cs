@@ -1,6 +1,7 @@
 ﻿using Autodesk.Revit.DB;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -9,7 +10,7 @@ namespace Bimbot.Utils
 {
    static class IfcUtils
    {
-      public static string ExportProjectToIFC(Document doc, string path)
+      public static string ExportProjectToIFC(Document doc)
       {
          IFCExportOptions ifcOptions = new IFCExportOptions();
          {
@@ -41,12 +42,14 @@ namespace Bimbot.Utils
          Transaction trans = new Transaction(doc, "export model");
          trans.Start();
 
+         string folder = Path.GetTempPath();
+         string name = DateTime.Now.ToString("yyyyMMddHHmmss") + "_" + Path.GetFileNameWithoutExtension(doc.PathName) + ".ifc";
+
          // revit doesn't allow the export to run in a different thread
-         string fileName = "tmp" + DateTime.Now.ToString("yyMMddHHmmssff") + ".ifc";
-         doc.Export(path, fileName, ifcOptions);
+         doc.Export(folder, name, ifcOptions);
 
          trans.Commit();
-         return fileName;
+         return Path.Combine(folder, name);
       }
    }
 }

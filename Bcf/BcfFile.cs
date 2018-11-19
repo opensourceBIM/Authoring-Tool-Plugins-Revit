@@ -97,6 +97,7 @@ namespace Bimbot.Bcf
                }
             }
 
+
             // Add snapshots to viewpoints of snapshots
             foreach (ZipArchiveEntry file in archive.Entries)
             {
@@ -134,6 +135,25 @@ namespace Bimbot.Bcf
                         break;
                      }
                   }
+               }
+            }
+
+            // Add ifc snippets to topic
+            foreach (ZipArchiveEntry file in archive.Entries)
+            {
+               // skip files that are not viewpoints
+               if (!file.Name.EndsWith(".ifc"))
+                  continue;
+
+               // Find the id
+               string issueId = file.FullName.Substring(0, file.FullName.IndexOf('/'));
+               if (!markups.ContainsKey(issueId))
+                  continue;
+
+               Markup issue = markups[issueId];
+               if (issue.Topic.BimSnippet != null)
+               {
+                  issue.Topic.BimSnippet.RefData = file.Open();
                }
             }
             isValidBcf = true;

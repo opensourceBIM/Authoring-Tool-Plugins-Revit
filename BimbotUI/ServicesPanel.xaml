@@ -5,30 +5,36 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:System="clr-namespace:System;assembly=mscorlib"
         x:Class="Bimbot.BimbotUI.ServicesPanel"
-        Title="Dockable Dialogs"  Height="500" Width="200"
-        x:Name="RevitBimbot"  Background="LightGray">
-    <Grid Margin="0,0,0,2">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition/>
-            <ColumnDefinition Width="0*"/>
-        </Grid.ColumnDefinitions>
+        Title="Dockable Dialogs"  Height="500" Width="235"
+        x:Name="RevitBimbot" Background="{DynamicResource {x:Static SystemColors.MenuBarBrushKey}}">
+    <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <ToolBar Grid.Row="0" Height="32" Width="200">
-            <Button Content="Add" Click="AddService"/>
-            <Button Content="Del" Click="DelService"/>
+        <ToolBar Grid.Row="0" Height="auto" HorizontalAlignment="Left" VerticalAlignment="Stretch" ToolBarTray.IsLocked="True">
+            <Button ToolTip="Add service" Click="AddService" Padding="0">
+                <Image Source="../Resources/Add.png"/>
+            </Button>
+            <Button ToolTip="Remove service" Click="DelService" Padding="0">
+                <Image Source="../Resources/Remove.png"/>
+            </Button>
             <Button Content="Mod" Click="ModService"/>
             <Button Content="Reg" Click="RegService"/>
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
             <Button Content="Run" Click="RunSingle"/>
             <Button Content="All" Click="RunAll"/>
         </ToolBar>
-        <ListView x:Name="servicesList" Grid.Row="1">            <!--SelectionChanged="ServicesList_SelectionChanged"-->
+        <ListView x:Name="servicesList" Grid.Row="1" HorizontalContentAlignment="Stretch">
+            <ListView.ItemContainerStyle>
+                <Style TargetType="ListViewItem">
+                    <Setter Property="Padding" Value="0"/>
+                    <Setter Property="Margin" Value="0"/>
+                </Style>
+            </ListView.ItemContainerStyle>
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <Grid>
+                    <Grid Margin="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="auto" />
                             <RowDefinition Height="auto" />
@@ -36,22 +42,32 @@
                         </Grid.RowDefinitions>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="auto" />
-                            <ColumnDefinition Width="1*" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="55" />
                         </Grid.ColumnDefinitions>
-                        <Grid Grid.RowSpan="3" MaxWidth="60" MaxHeight="60" HorizontalAlignment="Stretch">
-                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
-                                <Image Source="{Binding ProviderIconUrl}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
-                            </StackPanel>
+                        <Grid Grid.RowSpan="3" MaxHeight="60">
+                            <Image Source="{Binding ProviderIconUrl}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
                         </Grid>
                         <Grid Grid.Row="0" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding Name}" />
+                            <Label Padding="0" FontWeight="Bold" Content="{Binding Name}" />
                         </Grid>
                         <Grid Grid.Row="1" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding Description}" />
+                            <Label Padding="0" FontSize="10" Content="{Binding Description}" />
                         </Grid>
                         <Grid Grid.Row="2" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding Provider}" />
+                            <Label Padding="0" Content="{Binding Provider}" />
                         </Grid>
+                        <WrapPanel Grid.Row="0" Grid.Column="2" HorizontalAlignment="Left">
+                            <Ellipse Fill="#FF00FF00" HorizontalAlignment="Left" Height="10" Stroke="Black" VerticalAlignment="Top" Width="10" Margin="2"/>
+                            <Label Padding="0" FontSize="8">Registered</Label>
+                        </WrapPanel>
+                        <WrapPanel Grid.Row="1" Grid.Column="2" HorizontalAlignment="left">
+                            <Ellipse Fill="#FFFF0000" HorizontalAlignment="Left" Height="10" Stroke="Black" VerticalAlignment="Top" Width="10" Margin="2"/>
+                            <Label Padding="0" FontSize="8">Running</Label>
+                        </WrapPanel>
+                        <WrapPanel Grid.Row="2" Grid.Column="2" HorizontalAlignment="left">
+                            <Label Padding="0" FontSize="8" Content="{Binding result.lastRun}"/>
+                        </WrapPanel>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

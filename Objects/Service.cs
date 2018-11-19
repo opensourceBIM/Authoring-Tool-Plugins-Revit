@@ -25,8 +25,8 @@ namespace Bimbot.Objects
    {
       public class SOauth
       {
-         public string authorizationUrl;
          public string registerUrl;
+         public string authorizationUrl;
          public string tokenUrl;
       }
 
@@ -58,13 +58,17 @@ namespace Bimbot.Objects
 
 
 
-      public ServiceResult result { get; private set; }
+      public ServiceResult result { get; set; }
 
       public Entity serviceEntity;
 
       public string ProviderIconUrl
       {
-         get { return ResourceUrl.Substring(0, ResourceUrl.IndexOf('/',9)) + ProviderIcon; }
+         get {
+            return ResourceUrl == null ? "" : 
+               (ResourceUrl.StartsWith("http") ? ResourceUrl : 
+               ResourceUrl.Substring(0, ResourceUrl.IndexOf('/',9)) + ProviderIcon);
+         }
       }
 
       #region constructors
@@ -73,11 +77,9 @@ namespace Bimbot.Objects
       public Service(int id, string name, string description, string provider, string providerIcon, 
                      List<string> inputs, List<string> outputs, SOauth oauth, string resourceUrl)
       {
-         Id = id;
-         
+         Id = id;        
          //Temporary fix for demo
-         Name = name.Equals("FixedFileService") ? "Validate Model Service" : name;
-
+         Name = /*name.Equals("FixedFileService") ? "Validate Model Service" :*/ name;
          Description = description;
          Provider = provider;
          ProviderIcon = providerIcon;
@@ -97,7 +99,7 @@ namespace Bimbot.Objects
          Name = serviceEnt.Get<string>("srvcName");
 
          //Temporary fix for demo
-         Name = Name.Equals("FixedFileService") ? "Validate Model Service" : Name;
+//         Name = Name.Equals("FixedFileService") ? "Validate Model Service" : Name;
          
          Description = serviceEnt.Get<string>("srvcDesc");
          Provider = serviceEnt.Get<string>("srvcProvider");
@@ -121,7 +123,7 @@ namespace Bimbot.Objects
             result.bcf = new BcfFile(Convert.FromBase64String(result.data));
 
          /* temp solution to fix previous stored OAuth data */
-         if (Name.Equals("Validate Model Service"))
+/*         if (Name.Equals("Validate Model Service"))
          {
             if (ResourceUrl.Equals("https://ifcanalysis.bimserver.services/services"))
             {
@@ -129,6 +131,7 @@ namespace Bimbot.Objects
                srvcToken = "895f555dbe081dbec5b8e4222678bf778b39c59793af7e40d4b7a1acae5d67429fbfdc68f3725742f07c1e5f4435f614511f9a3126250c0b634edf4b2b0ed613";
             }
          }
+ */
       }
       #endregion
 
@@ -165,11 +168,79 @@ namespace Bimbot.Objects
       {
          return IsPkZipCompressedData(data) || IsGZipCompressedData(data);
       }
-
-
-      public async Task<string> Run(byte[] data)
+      
+      public string Run(byte[] data)
       {
-         string resstr = null;
+         if (soid <= 0)
+         {
+            // Special for Thomas Brick Bot not to run online
+            byte[] fileBytes = File.ReadAllBytes("C:\\DataLocal\\RunningProjects\\DemoLeon\\result_final.bcf");
+
+            result = new ServiceResult();
+            result.isBcf = true;
+            result.data = Convert.ToBase64String(fileBytes);
+            result.bcf = new BcfFile(fileBytes);
+            result.lastRun = DateTime.Now;
+         }
+         else
+         {
+            WebRequest myWebRequest;
+            myWebRequest = WebRequest.Create(ResourceUrl + (soid == -1 ? "" : "/" + soid.ToString()));
+
+            HttpWebRequest myHttpWebRequest = (HttpWebRequest)myWebRequest;
+            myHttpWebRequest.Method = "POST";
+            myHttpWebRequest.Headers.Add("Input-Type", "IFC_STEP_2X3TC1");
+            myHttpWebRequest.Headers.Add("Token", srvcToken);
+            myHttpWebRequest.Headers.Add("Accept-Flow", "SYNC");
+
+            Stream requestStream = myHttpWebRequest.GetRequestStream();
+            requestStream.Write(data, 0, data.Length);
+            //         Thread.Sleep(1000);
+            WebResponse response = myHttpWebRequest.GetResponse() as HttpWebResponse;
+            if (response != null)
+            {
+               using (Stream responseStream = response.GetResponseStream())
+               {
+                  if (responseStream != null)
+                  {
+                     //                  BinaryReader binReader = new BinaryReader(responseStream);
+                     byte[] bytes;
+
+                     using (MemoryStream ms = new MemoryStream())
+                     {
+                        responseStream.CopyTo(ms);
+                        bytes = ms.ToArray();
+                     }
+
+                     result = new ServiceResult();
+
+                     if (bytes.Length == 0)
+                     {
+                        result.isBcf = false;
+                        result.data = "-Empty response-";
+                     }
+                     else
+                     {
+                        result.isBcf = IsCompressedData(bytes);
+
+                        if (result.isBcf)
+                           result.data = Convert.ToBase64String(bytes);
+                        else
+                           result.data = Encoding.UTF8.GetString(bytes);
+                     }
+                     result.lastRun = DateTime.Now;
+
+                     //InsertOutput();
+                  }
+               }
+            }
+         }
+         return result.data != null ? result.data : "Service Failed";
+      }
+
+
+      public async Task<string> RunAsync(byte[] data)
+      {
          WebRequest myWebRequest;
          myWebRequest = WebRequest.Create(ResourceUrl + "/" + soid.ToString());
 
@@ -177,10 +248,11 @@ namespace Bimbot.Objects
          myHttpWebRequest.Method = "POST";
          myHttpWebRequest.Headers.Add("Input-Type", "IFC_STEP_2X3TC1");
          myHttpWebRequest.Headers.Add("Token", srvcToken);
+         myHttpWebRequest.Headers.Add("Accept-Flow", "SYNC");
 
          Stream requestStream = myHttpWebRequest.GetRequestStream();
          requestStream.Write(data, 0, data.Length);
-         Thread.Sleep(1000);
+//         Thread.Sleep(1000);
          WebResponse response = await myHttpWebRequest.GetResponseAsync() as HttpWebResponse;
          if (response != null)
          {
@@ -188,7 +260,7 @@ namespace Bimbot.Objects
             {
                if (responseStream != null)
                {
-//                  BinaryReader binReader = new BinaryReader(responseStream);
+                  //                  BinaryReader binReader = new BinaryReader(responseStream);
                   byte[] bytes;
 
                   using (MemoryStream ms = new MemoryStream())
@@ -198,25 +270,32 @@ namespace Bimbot.Objects
                   }
 
                   result = new ServiceResult();
-
-                  result.isBcf = IsCompressedData(bytes);
-
-                  if (result.isBcf)
-                     result.data = Convert.ToBase64String(bytes);
+                  if (bytes.Length == 0)
+                  {
+                     result.isBcf = false;
+                     result.data = "-Empty response-";
+                  }
                   else
-                     result.data = Encoding.UTF8.GetString(bytes);
+                  {
+                     result.isBcf = IsCompressedData(bytes);
 
+                     if (result.isBcf)
+                        result.data = Convert.ToBase64String(bytes);
+                     else
+                        result.data = Encoding.UTF8.GetString(bytes);
+                  }
                   result.lastRun = DateTime.Now;
 
                   //InsertOutput();
                }
             }
          }
-         return resstr;
+         return result.data != null ? result.data : "Service Failed";
       }
 
 
-      private static void ExportProjectToIFC(Document doc, string path)
+
+      private void ExportProjectToIFC(Document doc, string path)
       {
          IFCExportOptions ifcOptions = new IFCExportOptions();
          {

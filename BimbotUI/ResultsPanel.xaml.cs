@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Net;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -8,6 +10,7 @@ using Autodesk.Revit.UI;
 using Bimbot.Bcf;
 using Bimbot.ExternalEvents;
 using Bimbot.Objects;
+using Xceed.Wpf.Toolkit.PropertyGrid;
 
 namespace Bimbot.BimbotUI
 {
@@ -19,15 +22,19 @@ namespace Bimbot.BimbotUI
       #region Data
       private ExternalEvent ExtEvent;
       private ExtEvntChangeView Handler;
+      private ExternalEvent ImportIfcEvent;
+      private ExtEvntImportIfcSnippet ImportIfcHandler;
       private BimbotDocument botDoc;
       #endregion
 
-      public ResultsPanel(ExternalEvent exEvent, ExtEvntChangeView handler)
+      public ResultsPanel(ExternalEvent exEvent, ExtEvntChangeView handler, ExternalEvent importIfcEvent, ExtEvntImportIfcSnippet ifcHandler)
       {
          try
          {
             ExtEvent = exEvent;
             Handler = handler;
+            ImportIfcEvent = importIfcEvent;
+            ImportIfcHandler = ifcHandler;
             InitializeComponent();
          }
          catch (Exception ex)
@@ -57,6 +64,9 @@ namespace Bimbot.BimbotUI
       public void UpdateView()
       {
          issuesList.Items.Clear();
+         if (botDoc == null)
+            return;
+
          foreach (Service service in botDoc.registeredServices)
          {
             if (service.result == null)
@@ -64,20 +74,20 @@ namespace Bimbot.BimbotUI
 
             if (service.result.isBcf)
             {
-               if (service.result.bcf != null)
+               if (service.result.bcf == null)
+                  service.result.bcf = new BcfFile(Convert.FromBase64String(service.result.data));
+
+               //Set markups to interface
+               foreach (KeyValuePair<string, Markup> entry in service.result.bcf.markups)
                {
-                  //Set markups to interface
-                  foreach (KeyValuePair<string, Markup> entry in service.result.bcf.markups)
+                  issuesList.Items.Add(new ServiceItem
                   {
-                     issuesList.Items.Add(new ServiceItem
-                     {
-                        title = entry.Value.Topic.Title,
-                        service = service.Name,
-                        date = service.result.lastRun.ToString(),
-                        type = "bcf",
-                        issueData = entry.Value
-                     });
-                  }
+                     title = entry.Value.Topic.Title,
+                     service = service.Name,
+                     date = service.result.lastRun.ToString(),
+                     type = "bcf",
+                     issueData = entry.Value
+                  });
                }
             }
             else
@@ -194,6 +204,38 @@ namespace Bimbot.BimbotUI
          {
             viewpointItems.SelectedObject = null;
          }
-      }     
+      }
+
+
+      private void topicItems_SelectedPropertyItemChanged(object sender, RoutedPropertyChangedEventArgs<PropertyItemBase> e)
+      {
+         PropertyItem propItem = topicItems.SelectedPropertyItem as PropertyItem;
+         if (propItem != null && propItem.PropertyName.Equals("BimSnippet") && propItem.Value != null)
+         {
+            BimSnippet snippet = (BimSnippet)propItem.Value;
+            Markup curMarkup = ((ServiceItem)issuesList.SelectedItems[0]).issueData;
+            ImportIfcHandler.filePath = Path.Combine(Path.GetTempPath(), curMarkup.Topic.Guid + ".ifc");
+
+            if (snippet.isExternal)
+            {
+               // Read data from URL
+               using (var client = new WebClient())
+               {
+                  client.DownloadFile(snippet.Reference, ImportIfcHandler.filePath);
+               }
+            }
+            else
+            {
+               // Read data from zip
+               using (var fileStream = File.Create(ImportIfcHandler.filePath))
+               {
+                  snippet.RefData.CopyTo(fileStream);
+               }
+            }
+
+            // Get the data and create local file 
+            ImportIfcEvent.Raise();
+         }
+      }
    }
 }

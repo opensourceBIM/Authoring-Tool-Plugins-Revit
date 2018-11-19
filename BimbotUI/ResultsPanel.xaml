@@ -49,7 +49,7 @@
         <TextBlock x:Name="textIssue" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
         <TabControl x:Name="bcfIssue" Grid.Row="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
             <TabItem Header="Topic">
-                <xctk:PropertyGrid x:Name="topicItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False"/>
+                <xctk:PropertyGrid x:Name="topicItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False" SelectedPropertyItemChanged="topicItems_SelectedPropertyItemChanged"/>
             </TabItem>
             <TabItem Header="Comments">
                 <Grid>

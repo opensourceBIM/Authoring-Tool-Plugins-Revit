@@ -66,8 +66,12 @@ namespace Bimbot.BimbotUI
                InsertServicesFromProvider(provider);
             }
          }
+         //Temp brickbot Thomas add
+         InsertFixedBotThomas();
          buttonAdd.Enabled = false;
       }
+
+
 
 
       private string ResponseOfGetRequest(string url)
@@ -101,73 +105,55 @@ namespace Bimbot.BimbotUI
       private void InsertServicesFromProvider(SProvider provider)
       {
          string resstr = ResponseOfGetRequest(provider.listUrl);
-         if (resstr != null)
+         if (resstr != null && !resstr.Equals(""))
          {
             ServiceListResponse serviceListResponse = JsonConvert.DeserializeObject<ServiceListResponse>(resstr);
             foreach (Service service in serviceListResponse.services)
             {
                service.host = provider;
-               ListViewItem item = listAvailableServices.Items.Add(service.Name.Equals("FixedFileService") ? "Validate Model Service" : service.Name);
-               item.SubItems.Add(service.Provider);
+               ListViewItem item = listAvailableServices.Items.Add(/*service.Name.Equals("FixedFileService") ? "Validate Model Service" :*/ service.Name);
+               item.SubItems.Add(service.ResourceUrl);
                item.Tag = service;
             }
          }
       }
 
+      private void InsertFixedBotThomas()
+      {
+         //Open a bcf from fixed location
+        
+         Service service = new Service(7654321, "Bricker BIM Bot", "Convert limestone walls to bricks", 
+                                       "Bricker", "http://www.clker.com/cliparts/a/g/Z/8/6/G/blue-ibm-wall-md.png", 
+                                       new List<string> { "IFC_STEP_2X3TC1" },
+                                       new List<string> { "BCF_ZIP_2_0" },
+                                       null, 
+                                       "http://ec2-18-218-56-112.us-east-2.compute.amazonaws.com/");
+
+         ListViewItem item = listAvailableServices.Items.Add(service.Name);
+         item.SubItems.Add(service.ResourceUrl);
+         item.Tag = service;
+      }
+
+
+
+
       private void EnableDisableAddButton(object sender, EventArgs e)
       {
          buttonAdd.Enabled = ((listAvailableServices.SelectedItems.Count == 1) &&
                               !newTrigger.Text.Equals("") &&
-                              !newToken.Text.Equals("") &&
-                              !newSoid.Text.Equals(""));
+                              ((!newToken.Text.Equals("") && !newSoid.Text.Equals("")) || 
+                               listAvailableServices.SelectedItems[0].Text.Equals("Bricker BIM Bot"))); // Special for the Bricker BIM BOT
       }
 
 
       private void AddServiceClick(object sender, EventArgs e)
       {
-         Service curService = (Service)listAvailableServices.SelectedItems[0].Tag;
-         curService.soid = Convert.ToInt32(newSoid.Text);
+         curService = (Service)listAvailableServices.SelectedItems[0].Tag;
+         curService.soid = newSoid.Text.Equals("") ? -1 : Convert.ToInt32(newSoid.Text);
          curService.srvcToken = newToken.Text;
          curService.Trigger = textToTrigger[newTrigger.Text];
 
-
-         // Add the configuration to the revit file as well (make triggering work on reopening the document)
-         Transaction transaction = new Transaction(curDoc, "tAddEntity");
-         transaction.Start();
-
-         // create an entity (object) for this schema (class)
-         curService.serviceEntity = new Entity(RevitBimbot.ServiceSchema);
-
-
-         Entity entity = curDoc.ProjectInformation.GetEntity(RevitBimbot.Schema);
-         if (!entity.IsValid()) entity = new Entity(RevitBimbot.Schema);
-
-         // get the field from the schema
-         curService.serviceEntity.Set<string>("hostName", curService.host.name);
-         curService.serviceEntity.Set<string>("hostUrl", curService.host.listUrl);
-         curService.serviceEntity.Set<string>("hostDesc", curService.host.description);
-
-         curService.serviceEntity.Set<string>("srvcName", curService.Name);
-         curService.serviceEntity.Set<int>("srvcId", curService.Id);
-         curService.serviceEntity.Set<string>("srvcDesc", curService.Description);
-         curService.serviceEntity.Set<string>("srvcProvider", curService.Provider);
-         curService.serviceEntity.Set<string>("srvcProvIcon", curService.ProviderIcon);
-         curService.serviceEntity.Set<IList<string>>("srvcInputs", curService.Inputs);
-         curService.serviceEntity.Set<IList<string>>("srvcOutputs", curService.Outputs);
-         curService.serviceEntity.Set<string>("srvcUrl", curService.ResourceUrl);
-         curService.serviceEntity.Set<int>("srvcSoid", curService.soid);
-         curService.serviceEntity.Set<string>("srvcToken", curService.srvcToken);
-         curService.serviceEntity.Set<int>("srvcTrigger", (int)curService.Trigger);
-
-         //Get values (services) currently in the schema and add the new service
-         IList<Entity> orgServices = entity.Get<IList<Entity>>("services");
-
-         orgServices.Add(curService.serviceEntity);
-         entity.Set<IList<Entity>>("services", orgServices); // set the value for this entity
-
-         curDoc.ProjectInformation.SetEntity(entity); // store the entity in the element
-         transaction.Commit();
-         MessageBox.Show("Service '" + curService.Name + "' is successfully added");
+         //RevitBimbot.GetBimbotDocument(curDoc).AddService(curService);
       }
 
       private void listAvailableServices_SelectedIndexChanged(object sender, EventArgs e)
@@ -176,7 +162,7 @@ namespace Bimbot.BimbotUI
          {
             Service curService = (Service)listAvailableServices.SelectedItems[0].Tag;
 
-            if (curService.Name.Equals("Simple Analyses Service"))
+/*            if (curService.Name.Equals("Simple Analyses Service"))
             {
                if (curService.host.listUrl.Equals("https://ifcanalysis.bimserver.services/servicelist"))
                {
@@ -198,6 +184,7 @@ namespace Bimbot.BimbotUI
                   newToken.Text = "895f555dbe081dbec5b8e4222678bf778b39c59793af7e40d4b7a1acae5d67429fbfdc68f3725742f07c1e5f4435f614511f9a3126250c0b634edf4b2b0ed613";
                }
             }
+*/
          }
          else
          {
@@ -216,59 +203,53 @@ namespace Bimbot.BimbotUI
       {
          Service curService = (Service)listAvailableServices.SelectedItems[0].Tag;
          byte[] data = Encoding.ASCII.GetBytes("{\n" +
-            "\"type\": \"no idea what it's for\",\n" +
-            "\"client_name\": \"Revit file " + curDoc.PathName.Substring(curDoc.PathName.LastIndexOf('\\')) + " \",\n" +
-            "\"client_url\": \"-No URL-\",\n"+
+            "\"type\": \"pull\",\n" +
+            "\"client_name\": \"Revit file " + curDoc.PathName.Substring(curDoc.PathName.LastIndexOf('\\')+ 1) + "\",\n" +
+            "\"client_url\": \"-no url-\",\n"+
             "\"client_description\": \"A project file opened in Revit\",\n"+
-            "\"client_icon\": \"\",\n"+
+            "\"client_icon\": \"https://www.itannex.com/wp-content/uploads/2016/12/revit-icon-128px-hd.png\",\n"+
             "\"redirect_url\": \"\"\n"+
             "}");
 
+         OAuthRegisterResponse regData = null;
 
-         HttpWebRequest requist = (HttpWebRequest) WebRequest.Create(curService.Oauth.registerUrl);
-         requist.Method = "POST";
-         requist.ContentType = "application/json";
-         requist.ContentLength = data.Length;
+         HttpWebRequest request = (HttpWebRequest)WebRequest.Create(curService.Oauth.registerUrl);
+         request.Method = "POST";
+         request.ContentType = "application/json";
+         request.ContentLength = data.Length;
          try
          {
-            using (Stream requestStream = requist.GetRequestStream())
+            using (Stream requestStream = request.GetRequestStream())
             {
                requestStream.Write(data, 0, data.Length);
             }
 
-            WebResponse response = requist.GetResponse() as HttpWebResponse;
+            WebResponse response = request.GetResponse() as HttpWebResponse;
             if (response != null)
             {
                using (Stream responseStream = response.GetResponseStream())
                {
                   if (responseStream != null)
                   {
-                     //                  BinaryReader binReader = new BinaryReader(responseStream);
-                     byte[] bytes;
-
-                     using (MemoryStream ms = new MemoryStream())
-                     {
-                        responseStream.CopyTo(ms);
-                        bytes = ms.ToArray();
-                        string str = bytes.ToString();
-                     }
-                     //InsertOutput();
-
+                     StreamReader reader = new StreamReader(responseStream, Encoding.UTF8);
+                     string str = reader.ReadToEnd();
+                     regData = JsonConvert.DeserializeObject<OAuthRegisterResponse>(str);
                   }
                }
             }
 
+            if (regData != null)
+            {
+               string url = curService.Oauth.authorizationUrl +"?redirect_uri=SHOW_CODE&auth_type=service&response_type=code";
+               url += "&client_id=" + regData.client_id + "&state=%7B%22_serviceName%22%3A%22" + curService.Name + "%22%7D";
+
+               System.Diagnostics.Process.Start(url);
+            }
          }
          catch (Exception ex)
          {
             Console.Write(ex);
          }
-
-
-
-
-
-         System.Diagnostics.Process.Start("http://google.com");
       }
    }
    

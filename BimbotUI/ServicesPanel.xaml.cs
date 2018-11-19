@@ -25,6 +25,8 @@ using Bimbot.Objects;
 using Bimbot.Utils;
 using System.ComponentModel;
 using System.Threading;
+using Autodesk.Windows;
+using System.Collections.ObjectModel;
 
 namespace Bimbot.BimbotUI
 {
@@ -36,15 +38,22 @@ namespace Bimbot.BimbotUI
       #region Data
       private ExternalEvent         ExtEvent;
       private ExtEvntChangeDocument Handler;
+      private ExternalEvent         RunServiceEvent;
+      private ExtEvntRunServices    RunServiceHandler;
+      private ExternalEvent         ImportIfcEvent;
       public BimbotDocument         botDoc;
       #endregion
 
-      public ServicesPanel(ExternalEvent exEvent, ExtEvntChangeDocument handler)
+      public ServicesPanel(ExternalEvent exEvent, ExtEvntChangeDocument handler, ExternalEvent runEvent, ExtEvntRunServices runHandler, ExternalEvent importIfcEvent)
       {
          try
          {
             ExtEvent = exEvent;
             Handler = handler;
+            RunServiceEvent = runEvent;
+            RunServiceHandler = runHandler;
+            ImportIfcEvent = importIfcEvent;
+
             InitializeComponent();
          }
          catch (Exception ex)
@@ -56,10 +65,15 @@ namespace Bimbot.BimbotUI
       public void ShowDocument(BimbotDocument bimDoc)
       {
          botDoc = bimDoc;
-         Handler.curDoc = bimDoc.revitDocument;
+         Handler.curDoc = botDoc.revitDocument;
 
+         UpdateView();
+      }
+
+      public void UpdateView()
+      {
          servicesList.Items.Clear();
-         foreach (Service serv in bimDoc.registeredServices)
+         foreach (Service serv in botDoc.registeredServices)
          {
             servicesList.Items.Add(serv);
          }
@@ -77,15 +91,21 @@ namespace Bimbot.BimbotUI
 
       private void AddService(object sender, RoutedEventArgs e)
       {
+         if (botDoc == null)
+         {
+            System.Windows.MessageBox.Show("The current document is not loaded, so no service can be added!");
+            return;
+         }
+
          ServiceAddFormOld form = new ServiceAddFormOld(botDoc.revitDocument);
          if (form.ShowDialog() == DialogResult.OK)
          {
-            if (botDoc != null)
-               botDoc.AddService(form.curService);
-
-//            Bimbot.RevitBimbot.services.Add(curService);
+            botDoc.AddService(form.curService);
+            servicesList.Items.Add(form.curService);
+            System.Windows.MessageBox.Show("Service '" + form.curService.Name + "' is successfully added");
          }
       }
+
 
       private void DelService(object sender, RoutedEventArgs e)
       {
@@ -97,17 +117,15 @@ namespace Bimbot.BimbotUI
          }
       }
 
-      private void RefreshView(object sender, RoutedEventArgs e)
-      {
-
-      }
       private void RegService(object sender, RoutedEventArgs e)
       {
-
+         //        ImportIfcEvent.Raise();
+         //Open a bcf from fixed location
       }
+
       private void ModService(object sender, RoutedEventArgs e)
       {
-
+//         Bimbot.RevitBimbot.EmulateImportIfc();
       }
 
       private void RunSingle(object sender, RoutedEventArgs e)
@@ -115,129 +133,21 @@ namespace Bimbot.BimbotUI
          if (servicesList.SelectedItems.Count != 1)
             return;
 
-         // Create ifc-file for service
-         string path = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-         string filename = IfcUtils.ExportProjectToIFC(botDoc.revitDocument, path);
-         byte[] data = File.ReadAllBytes(Path.Combine(path, filename));
-         File.Delete(Path.Combine(path, filename));
-
-         BackgroundWorker bgw = new BackgroundWorker();
-         bgw.DoWork += new DoWorkEventHandler(DoWork);
-         bgw.RunWorkerCompleted += (_, __) =>
-         {
-            System.Windows.MessageBox.Show("Finished selected service!");
-         };
-         bgw.RunWorkerAsync(new Tuple<Service, byte[]>((Service)servicesList.SelectedItem, data));
+         RunServiceHandler.services.Clear();
+         RunServiceHandler.services.Add((Service)servicesList.SelectedItem);
+         RunServiceEvent.Raise();
       }
 
       private void RunAll(object sender, RoutedEventArgs e)
       {
-         try
-         {
-            // Create ifc-file for service
-            string path = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-            string filename = IfcUtils.ExportProjectToIFC(botDoc.revitDocument, path);
-            byte[] data = File.ReadAllBytes(Path.Combine(path, filename));
-            File.Delete(Path.Combine(path, filename));
-
-            BackgroundWorker bgw = new BackgroundWorker();
-            bgw.DoWork += new DoWorkEventHandler(DoWork);
-            bgw.RunWorkerCompleted += (_, __) =>
-            {
-               System.Windows.MessageBox.Show("Finished all services!");
-            };
-            bgw.RunWorkerAsync(data);
-         }
-         catch (OperationCanceledException ex)
-         {
-            System.Windows.MessageBox.Show("Not finished services have been cancelled.");
-         }
-         catch (Exception ex)
-         {
-            System.Windows.MessageBox.Show("A service has failed.");
-         }
-      }
-
-      public void DoWork(object sender, DoWorkEventArgs e)
-      {
-         CancellationTokenSource cts = new CancellationTokenSource();
-
-         RunServicesAsync((byte[])e.Argument, cts.Token).Wait();
-
-      }
-
-      public void DoWorkSingle(object sender, DoWorkEventArgs e)
-      {
-         CancellationTokenSource cts = new CancellationTokenSource();
-         ((Tuple<Service, byte[]>)e.Argument).Item1.Run(((Tuple<Service, byte[]>)e.Argument).Item2).Wait();
-
-         lock (Handler._IsFree)
-         {
-            Handler.partsToUpdate = ExtEvntChangeDocument.ServiceParts.result;
-            Handler.serviceToUpdate = ((Tuple<Service, byte[]>)e.Argument).Item1;
-            ExtEvent.Raise();
-         }
-      }
-
-
-      private async Task RunServicesAsync(byte[] data, CancellationToken ct)
-      {
-         Dictionary<Task<String>, Service> taskToService = new Dictionary<Task<String>, Service>();
-         List<Task<String>> tasks = new List<Task<String>>();
-
          // Create list of tasks from services to run
+         RunServiceHandler.services.Clear();
          foreach (Service curService in botDoc.registeredServices)
          {
-            if (curService.Trigger == RevitEvntTrigger.manualButton)
-            {
-               Task<string> task = RunService(data, curService, ct);
-               tasks.Add(task);
-               taskToService.Add(task, curService);
-            }
+            RunServiceHandler.services.Add(curService);
          }
-         System.Windows.MessageBox.Show("Services Started!");
+         RunServiceEvent.Raise();
 
-         // Excute tasks (services) and handle the first to finish
-         while (tasks.Count > 0)
-         {
-            Task<String> firstFinishedTask = await Task.WhenAny(tasks);
-
-            lock (Handler._IsFree)
-            {
-               Handler.partsToUpdate = ExtEvntChangeDocument.ServiceParts.result;
-               Handler.serviceToUpdate = taskToService[firstFinishedTask];
-               ExtEvent.Raise();
-            }
-            tasks.Remove(firstFinishedTask);
-            taskToService.Remove(firstFinishedTask);
-
-            String res = await firstFinishedTask;
-
-            System.Windows.MessageBox.Show("Finished task '" + taskToService[firstFinishedTask].Name + "' with response: \n" + res.Substring(0, 300));
-         }
       }
-
-
-      async Task<string> RunService(byte[] data, Service curService, CancellationToken ct)
-      {
-         // GetAsync returns a Task<HttpResponseMessage>. 
-         return await curService.Run(data);
-      }
-
-      private static Entity InsertOutput(Document doc, Entity service, string result, string type)
-      {
-         Transaction trans = new Transaction(doc, "Insert results");
-         trans.Start();
-
-
-         service.Set<string>("resultType", type);
-         service.Set<string>("resultData", result);
-         service.Set<string>("resultDate", DateTime.Now.ToString("dd-MM-yyyy HH:mm:ss"));
-
-         trans.Commit();
-         return service;
-      }
-
-
    }
 }
