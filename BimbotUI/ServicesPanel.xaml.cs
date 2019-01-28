@@ -36,24 +36,22 @@ namespace Bimbot.BimbotUI
    public partial class ServicesPanel : Page, Autodesk.Revit.UI.IDockablePaneProvider
    {
       #region Data
-      private ExternalEvent         ExtEvent;
-      private ExtEvntChangeDocument Handler;
-      private ExternalEvent         RunServiceEvent;
-      private ExtEvntRunServices    RunServiceHandler;
-      private ExternalEvent         ImportIfcEvent;
-      public BimbotDocument         botDoc;
+      private ExternalEventsContainer         ExtEvents;
+      private Guid m_targetGuid; 
+      private DockPosition m_position = DockPosition.Bottom; 
+      private int m_left = 1; 
+      private int m_right = 1; 
+      private int m_top = 1; 
+      private int m_bottom = 1;
+
+//      private ServiceAddWindow addWindow;
       #endregion
 
-      public ServicesPanel(ExternalEvent exEvent, ExtEvntChangeDocument handler, ExternalEvent runEvent, ExtEvntRunServices runHandler, ExternalEvent importIfcEvent)
+      public ServicesPanel(ExternalEventsContainer extEvents)
       {
          try
          {
-            ExtEvent = exEvent;
-            Handler = handler;
-            RunServiceEvent = runEvent;
-            RunServiceHandler = runHandler;
-            ImportIfcEvent = importIfcEvent;
-
+            ExtEvents = extEvents;
             InitializeComponent();
          }
          catch (Exception ex)
@@ -62,47 +60,45 @@ namespace Bimbot.BimbotUI
          }
       }
 
-      public void ShowDocument(BimbotDocument bimDoc)
-      {
-         botDoc = bimDoc;
-         Handler.curDoc = botDoc.revitDocument;
 
-         UpdateView();
-      }
-
-      public void UpdateView()
-      {
-         servicesList.Items.Clear();
-         foreach (Service serv in botDoc.registeredServices)
-         {
-            servicesList.Items.Add(serv);
-         }
-      }
-
-      
       public void SetupDockablePane(Autodesk.Revit.UI.DockablePaneProviderData data)
-      {
-         data.FrameworkElement = this as FrameworkElement;
-         data.InitialState = new Autodesk.Revit.UI.DockablePaneState();
-         data.InitialState.DockPosition = DockPosition.Tabbed;
-         data.InitialState.TabBehind = Autodesk.Revit.UI.DockablePanes.BuiltInDockablePanes.ProjectBrowser;
+      { 
+        data.FrameworkElement = this as FrameworkElement; 
+        data.InitialState = new Autodesk.Revit.UI.DockablePaneState(); 
+        data.InitialState.DockPosition = DockPosition.Tabbed; 
+        //DockablePaneId targetPane; 
+        //if (m_targetGuid == Guid.Empty) 
+        //    targetPane = null; 
+        //else targetPane = new DockablePaneId(m_targetGuid); 
+        //if (m_position == DockPosition.Tabbed) 
+        data.InitialState.TabBehind = Autodesk.Revit.UI.DockablePanes.BuiltInDockablePanes.ProjectBrowser; 
+       //if (m_position == DockPosition.Floating) 
+        //{ 
+       //data.InitialState.SetFloatingRectangle(new Autodesk.Revit.UI.Rectangle(10, 710, 10, 710)); 
+        //data.InitialState.DockPosition = DockPosition.Tabbed; 
+        //} 
+        //Log.Message("***Intial docking parameters***"); 
+        //Log.Message(APIUtility.GetDockStateSummary(data.InitialState)); 
       }
-      
+
+      public void SetInitialDockingParameters(int left, int right, int top, int bottom, DockPosition position, Guid targetGuid)
+      { 
+        m_position = position; 
+        m_left = left; 
+        m_right = right; 
+        m_top = top; 
+        m_bottom = bottom; 
+        m_targetGuid = targetGuid; 
+      } 
+   
 
       private void AddService(object sender, RoutedEventArgs e)
       {
-         if (botDoc == null)
+         ServiceAddWindow addWindow = new ServiceAddWindow((BimbotDocument) DataContext);
+         if (addWindow.ShowDialog() == true)
          {
-            System.Windows.MessageBox.Show("The current document is not loaded, so no service can be added!");
-            return;
-         }
-
-         ServiceAddFormOld form = new ServiceAddFormOld(botDoc.revitDocument);
-         if (form.ShowDialog() == DialogResult.OK)
-         {
-            botDoc.AddService(form.curService);
-            servicesList.Items.Add(form.curService);
-            System.Windows.MessageBox.Show("Service '" + form.curService.Name + "' is successfully added");
+            ((BimbotDocument)DataContext).AddService(addWindow.CurrentService);
+            ExtEvents.ChangeDocumentEvent.Raise();
          }
       }
 
@@ -111,43 +107,50 @@ namespace Bimbot.BimbotUI
       {
          if (servicesList.SelectedItems.Count == 1)
          {
-            Service curService = (Service)servicesList.SelectedItem;
-            botDoc.DelService(curService);
-            servicesList.Items.RemoveAt(servicesList.SelectedIndex);
+           ((BimbotDocument)DataContext).DelService((Service)servicesList.SelectedItem);
+            ExtEvents.ChangeDocumentEvent.Raise();
          }
       }
 
       private void RegService(object sender, RoutedEventArgs e)
       {
-         //        ImportIfcEvent.Raise();
-         //Open a bcf from fixed location
+         if (servicesList.SelectedItems.Count == 1)
+         {
+            Service CurrentService = (Service)servicesList.SelectedItem;
+            ProtectServiceWindow regWindow = new ProtectServiceWindow(CurrentService);
+            if (regWindow.ShowDialog() == true)
+            {
+               CurrentService.Protect(regWindow.Password.Text);
+            }
+         }
       }
 
       private void ModService(object sender, RoutedEventArgs e)
       {
-//         Bimbot.RevitBimbot.EmulateImportIfc();
+
       }
 
-      private void RunSingle(object sender, RoutedEventArgs e)
+
+      private void RunSelected(object sender, RoutedEventArgs e)
       {
-         if (servicesList.SelectedItems.Count != 1)
-            return;
-
-         RunServiceHandler.services.Clear();
-         RunServiceHandler.services.Add((Service)servicesList.SelectedItem);
-         RunServiceEvent.Raise();
+         ExtEvents.RunServicesHandler.services.Clear();
+         foreach (Service curService in servicesList.SelectedItems)
+         {
+            ExtEvents.RunServicesHandler.services.Add(curService);
+         }
+         ExtEvents.RunServicesEvent.Raise();
       }
+
 
       private void RunAll(object sender, RoutedEventArgs e)
       {
          // Create list of tasks from services to run
-         RunServiceHandler.services.Clear();
-         foreach (Service curService in botDoc.registeredServices)
+         ExtEvents.RunServicesHandler.services.Clear();
+         foreach (Service curService in servicesList.Items)
          {
-            RunServiceHandler.services.Add(curService);
+            ExtEvents.RunServicesHandler.services.Add(curService);
          }
-         RunServiceEvent.Raise();
-
+         ExtEvents.RunServicesEvent.Raise();
       }
    }
 }

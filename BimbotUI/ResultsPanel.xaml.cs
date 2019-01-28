@@ -20,21 +20,15 @@ namespace Bimbot.BimbotUI
    public partial class ResultsPanel : Page, Autodesk.Revit.UI.IDockablePaneProvider
    {
       #region Data
-      private ExternalEvent ExtEvent;
-      private ExtEvntChangeView Handler;
-      private ExternalEvent ImportIfcEvent;
-      private ExtEvntImportIfcSnippet ImportIfcHandler;
-      private BimbotDocument botDoc;
+//      private BimbotDocument botDoc;
+      private ExternalEventsContainer ExtEvents;
       #endregion
 
-      public ResultsPanel(ExternalEvent exEvent, ExtEvntChangeView handler, ExternalEvent importIfcEvent, ExtEvntImportIfcSnippet ifcHandler)
+      public ResultsPanel(ExternalEventsContainer extEvents)
       {
          try
          {
-            ExtEvent = exEvent;
-            Handler = handler;
-            ImportIfcEvent = importIfcEvent;
-            ImportIfcHandler = ifcHandler;
+            ExtEvents = extEvents;
             InitializeComponent();
          }
          catch (Exception ex)
@@ -55,36 +49,28 @@ namespace Bimbot.BimbotUI
       }
     
 
-      public void ShowDocument(BimbotDocument _botDoc)
-      {
-         botDoc = _botDoc;
-         UpdateView();
-      }
-
-      public void UpdateView()
+/*      public void UpdateView()
       {
          issuesList.Items.Clear();
-         if (botDoc == null)
-            return;
 
-         foreach (Service service in botDoc.registeredServices)
+         foreach (Service service in ((BimbotDocument)DataContext).AssignedServices)
          {
-            if (service.result == null)
+            if (service.Result == null)
                continue;
 
-            if (service.result.isBcf)
+            if (service.Result.isBcf)
             {
-               if (service.result.bcf == null)
-                  service.result.bcf = new BcfFile(Convert.FromBase64String(service.result.data));
+//               if (service.Result.bcf == null)
+//                  service.Result.bcf = new BcfFile(Convert.FromBase64String(service.Result.data));
 
                //Set markups to interface
-               foreach (KeyValuePair<string, Markup> entry in service.result.bcf.markups)
+               foreach (KeyValuePair<string, Markup> entry in service.Result.bcf.markups)
                {
                   issuesList.Items.Add(new ServiceItem
                   {
                      title = entry.Value.Topic.Title,
                      service = service.Name,
-                     date = service.result.lastRun.ToString(),
+                     date = service.Result.lastRun.ToString(),
                      type = "bcf",
                      issueData = entry.Value
                   });
@@ -96,14 +82,14 @@ namespace Bimbot.BimbotUI
                {
                   title = service.Name,
                   service = service.Name,
-                  date = service.result.lastRun.ToString(),
+                  date = service.Result.lastRun.ToString(),
                   type = "text",
-                  textData = service.result.data
+                  textData = service.Result.data
                });
             }
          }
       }
-
+*/
       
       public void SetupDockablePane(Autodesk.Revit.UI.DockablePaneProviderData data)
       {
@@ -113,12 +99,7 @@ namespace Bimbot.BimbotUI
          data.InitialState.TabBehind = Autodesk.Revit.UI.DockablePanes.BuiltInDockablePanes.ProjectBrowser;
       }
       
-      /*
-      private void DockableDialogs_Loaded(object sender, RoutedEventArgs e)
-      {
 
-      }
-      */
 
       private void IssuesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
       {
@@ -169,8 +150,8 @@ namespace Bimbot.BimbotUI
 
             if (curVp != null)
             {
-               Handler.v = curVp.ViewpointRef;
-               ExtEvent.Raise();
+               ExtEvents.ChangeViewHandler.v = curVp.ViewpointRef;
+               ExtEvents.ChangeViewEvent.Raise();
             }
          }
       }
@@ -197,8 +178,8 @@ namespace Bimbot.BimbotUI
             viewpointItems.SelectedObject = curVp.ViewpointRef;
 
             //ModifyRevitView(curVp);
-            Handler.v = curVp.ViewpointRef;
-            ExtEvent.Raise();
+            ExtEvents.ChangeViewHandler.v = curVp.ViewpointRef;
+            ExtEvents.ChangeViewEvent.Raise();
          }
          else
          {
@@ -214,27 +195,27 @@ namespace Bimbot.BimbotUI
          {
             BimSnippet snippet = (BimSnippet)propItem.Value;
             Markup curMarkup = ((ServiceItem)issuesList.SelectedItems[0]).issueData;
-            ImportIfcHandler.filePath = Path.Combine(Path.GetTempPath(), curMarkup.Topic.Guid + ".ifc");
+            ExtEvents.IfcImportHandler.filePath = Path.Combine(Path.GetTempPath(), curMarkup.Topic.Guid + ".ifc");
 
             if (snippet.isExternal)
             {
                // Read data from URL
                using (var client = new WebClient())
                {
-                  client.DownloadFile(snippet.Reference, ImportIfcHandler.filePath);
+                  client.DownloadFile(snippet.Reference, ExtEvents.IfcImportHandler.filePath);
                }
             }
             else
             {
                // Read data from zip
-               using (var fileStream = File.Create(ImportIfcHandler.filePath))
+               using (var fileStream = File.Create(ExtEvents.IfcImportHandler.filePath))
                {
                   snippet.RefData.CopyTo(fileStream);
                }
             }
 
             // Get the data and create local file 
-            ImportIfcEvent.Raise();
+            ExtEvents.IfcImportEvent.Raise();
          }
       }
    }

@@ -4,70 +4,62 @@
         xmlns:dat="clr-namespace:System.Windows.Data;assembly=PresentationFramework"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:System="clr-namespace:System;assembly=mscorlib"
+        xmlns:c="clr-namespace:Bimbot"
         x:Class="Bimbot.BimbotUI.ServicesPanel"
         Title="Dockable Dialogs"  Height="500" Width="235"
-        x:Name="RevitBimbot" Background="{DynamicResource {x:Static SystemColors.MenuBarBrushKey}}">
+        x:Name="RevitBimbot" Background="{DynamicResource {x:Static SystemColors.MenuBarBrushKey}}"
+    >
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
         <ToolBar Grid.Row="0" Height="auto" HorizontalAlignment="Left" VerticalAlignment="Stretch" ToolBarTray.IsLocked="True">
-            <Button ToolTip="Add service" Click="AddService" Padding="0">
+            <Button x:Name="AddButton" ToolTip="Add service" Click="AddService" Padding="0">
                 <Image Source="../Resources/Add.png"/>
             </Button>
             <Button ToolTip="Remove service" Click="DelService" Padding="0">
-                <Image Source="../Resources/Remove.png"/>
+                <Image x:Name="DelButton" Source="../Resources/Remove.png"/>
             </Button>
-            <Button Content="Mod" Click="ModService"/>
-            <Button Content="Reg" Click="RegService"/>
+            <Button ToolTip="Change service" Click="ModService" Padding="0">
+                <Image x:Name="EditButton" Source="../Resources/Modify.png" Width="24"/>
+            </Button>
+            <Button ToolTip="Authorize service" Click="RegService" Padding="0">
+                <Image x:Name="RegButton" Source="../Resources/Register.png" Width="24"/>
+            </Button>            
+
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
-            <Button Content="Run" Click="RunSingle"/>
+            <Button Content="Run" Click="RunSelected"/>
             <Button Content="All" Click="RunAll"/>
         </ToolBar>
-        <ListView x:Name="servicesList" Grid.Row="1" HorizontalContentAlignment="Stretch">
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                    <Setter Property="Padding" Value="0"/>
-                    <Setter Property="Margin" Value="0"/>
-                </Style>
-            </ListView.ItemContainerStyle>
+        <ListView x:Name ="servicesList" Grid.Row="1" HorizontalContentAlignment="Stretch" ItemsSource="{Binding AssignedServices}">
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Margin="0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="auto" />
-                            <RowDefinition Height="auto" />
-                            <RowDefinition Height="auto" />
-                        </Grid.RowDefinitions>
+                    <Grid Margin="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="auto" />
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="55" />
+                            <ColumnDefinition Width="auto" />
                         </Grid.ColumnDefinitions>
-                        <Grid Grid.RowSpan="3" MaxHeight="60">
-                            <Image Source="{Binding ProviderIconUrl}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
-                        </Grid>
-                        <Grid Grid.Row="0" Grid.Column="1">
+                        <Image Grid.Column="0" MaxHeight="60" Margin="2" Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
+                        <StackPanel Grid.Column="1" Margin="2">
                             <Label Padding="0" FontWeight="Bold" Content="{Binding Name}" />
-                        </Grid>
-                        <Grid Grid.Row="1" Grid.Column="1">
                             <Label Padding="0" FontSize="10" Content="{Binding Description}" />
-                        </Grid>
-                        <Grid Grid.Row="2" Grid.Column="1">
-                            <Label Padding="0" Content="{Binding Provider}" />
-                        </Grid>
-                        <WrapPanel Grid.Row="0" Grid.Column="2" HorizontalAlignment="Left">
-                            <Ellipse Fill="#FF00FF00" HorizontalAlignment="Left" Height="10" Stroke="Black" VerticalAlignment="Top" Width="10" Margin="2"/>
-                            <Label Padding="0" FontSize="8">Registered</Label>
-                        </WrapPanel>
-                        <WrapPanel Grid.Row="1" Grid.Column="2" HorizontalAlignment="left">
-                            <Ellipse Fill="#FFFF0000" HorizontalAlignment="Left" Height="10" Stroke="Black" VerticalAlignment="Top" Width="10" Margin="2"/>
-                            <Label Padding="0" FontSize="8">Running</Label>
-                        </WrapPanel>
-                        <WrapPanel Grid.Row="2" Grid.Column="2" HorizontalAlignment="left">
-                            <Label Padding="0" FontSize="8" Content="{Binding result.lastRun}"/>
-                        </WrapPanel>
+                            <Label Padding="0" Content="{Binding Provider.Name}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Margin="2" HorizontalAlignment="Left">
+                            <WrapPanel>
+                                <Ellipse Fill="{Binding ProtectedColor}" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
+                                <Label Padding="0" FontSize="8" Content="Authorized"/>
+                            </WrapPanel>
+                            <WrapPanel>
+                                <Ellipse Fill="{Binding RunningColor}" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
+                                <Label Padding="0" FontSize="8" Content="Running"/>
+                            </WrapPanel>
+                            <Label Padding="0" HorizontalAlignment="left" FontSize="8" Content="{Binding result.lastRun}"/>
+                        </StackPanel>
+                        <Separator Margin="-2" Grid.ColumnSpan="3" VerticalAlignment="Bottom"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

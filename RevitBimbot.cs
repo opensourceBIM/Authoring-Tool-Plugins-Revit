@@ -10,7 +10,7 @@ using Autodesk.Revit.UI;
 using Autodesk.Revit.DB.Events;
 using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.ExtensibleStorage;
-using Autodesk.Windows;
+//using Autodesk.Windows;
 using System.Collections.Generic;
 using Bimbot.BimbotUI;
 using Autodesk.Revit.UI.Events;
@@ -23,6 +23,9 @@ using System.Windows;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 
+using Rvt = Autodesk.Revit.UI;
+
+
 namespace Bimbot
 {
 	[Transaction(TransactionMode.Manual)]
@@ -31,84 +34,88 @@ namespace Bimbot
 	public class RevitBimbot : IExternalApplication
 	{
       #region constants
-      private static readonly Guid SchemaGuid = new Guid("a54b4c89-0ee7-4fae-8fbd-94443f5020b3");
-      private static readonly Guid ServiceGuid = new Guid("a54b4c89-0ee7-4fae-8fbd-94443f5020b4");
-      private static readonly Guid ApplicationGuid = new Guid("a694f098-20d5-42c2-a8a0-ac7ae6857c24");
+      public static readonly Guid ApplicationGuid = new Guid("a694f098-20d5-42c2-a8a0-ac7ae6857c24");
+      public static readonly string VendorId = "nl.tno";
 
       public static readonly DockablePaneId OutputPaneId = new DockablePaneId(new Guid("{a54b4c89-0ee7-4fae-8fbd-94443f5020b5}"));
       public static readonly DockablePaneId ServicePaneId = new DockablePaneId(new Guid("{a54b4c89-0ee7-4fae-8fbd-94443f5020b6}"));
-      private static readonly string VendorId = "nl.tno";
       #endregion
 
       #region local app
       private static RevitBimbot curApp;
 
-      public static Schema Schema { get; private set; }
-      public static Schema ServiceSchema { get; private set; }
-      //      public static List<Service> services { get; private set; } = new List<Service>();
-
-      public static adWin.RibbonButton toggleResultPanel;
-      public static adWin.RibbonButton toggleServicesPanel;
+      public static adWin.RibbonButton toggleButtonResults;
+      public static adWin.RibbonButton toggleButtonServices;
 
       #endregion
 
       #region fields
       UIControlledApplication uiApplication;
+      public ExternalEventsContainer ExtEvents { get; private set; }
       
       ResultsPanel DockableResultPanel = null;
       DockablePane outputPane;
       ServicesPanel DockableServicesPanel = null;
       DockablePane servicePane;
 
-      private Dictionary<Document, BimbotDocument> openedDocuments = new Dictionary<Document, BimbotDocument>();
-
+      private static Dictionary<Document, BimbotDocument> openedDocuments = new Dictionary<Document, BimbotDocument>();
       #endregion fields
 
       #region IExternalApplication Members
 
-      public static BimbotDocument GetBimbotDocument(Document doc)
-      {
-         return curApp.openedDocuments[doc];
-      }
 
-
-
-
-
-
-      public Result OnStartup(UIControlledApplication application)
+      public Rvt.Result OnStartup(UIControlledApplication application)
 		{
-         Schema = null;
+//         Schema = null;
          curApp = this;
-
          uiApplication = application;
-
-         // Create an event to perform a change of the view
-         var changeViewHandler = new ExtEvntChangeView();
-         var changeViewEvent = ExternalEvent.Create(changeViewHandler);
-
-         var changeDocumentHandler = new ExtEvntChangeDocument();
-         var changeDocumentEvent = ExternalEvent.Create(changeDocumentHandler);
-
-         var runServicesHandler = new ExtEvntRunServices();
-         var runServicesEvent = ExternalEvent.Create(runServicesHandler);
-
-         var ifcImportHandler = new ExtEvntImportIfcSnippet();
-         var ifcImportEvent = ExternalEvent.Create(ifcImportHandler);
-
-         // Create The DockablePanels for showing the service results and services
-         DockableResultPanel = new ResultsPanel(changeViewEvent, changeViewHandler, ifcImportEvent, ifcImportHandler);
-         DockableServicesPanel = new ServicesPanel(changeDocumentEvent, changeDocumentHandler, runServicesEvent, runServicesHandler, ifcImportEvent);
-
-         application.RegisterDockablePane(OutputPaneId, "BIM Bot results", DockableResultPanel as IDockablePaneProvider);
-         application.RegisterDockablePane(ServicePaneId, "BIM Bot services", DockableServicesPanel as IDockablePaneProvider);
-
-
+         ExtEvents = new ExternalEventsContainer();
 
          try
          {
+            // Add Panel to Add_Ins tab
+            RibbonPanel panel = application.CreateRibbonPanel("BIM Bot"); 
+
+            // Add Button to the BIM Bot panel
+            PushButton pushButton = panel.AddItem(new PushButtonData("BIMBot", "About BIM Bot", Assembly.GetExecutingAssembly().Location, "Bimbot.AboutAddin")) as PushButton;
+            SetImage(pushButton, Properties.Resources.BIMserver_BimBot);
+
+
+            // Create The DockablePanels for showing the service results and services
+            DockableResultPanel = new ResultsPanel(ExtEvents);
+            application.RegisterDockablePane(OutputPaneId, "BIM Bot results", DockableResultPanel as IDockablePaneProvider);
+
+            DockableServicesPanel = new ServicesPanel(ExtEvents);
+            application.RegisterDockablePane(ServicePaneId, "BIM Bot services", DockableServicesPanel as IDockablePaneProvider);
+
+            // Get the listbutton that manages the dockable views
+            adWin.RibbonListButton listBut = (adWin.RibbonListButton)adWin.ComponentManager.Ribbon.Tabs.Where(t => t.Id.Equals("View")).SelectMany(t => t.Panels).
+                                                    Where(p => p.Source.Id.Equals("manageviews_shr")).SelectMany(p => p.Source.Items).
+                                                    Where(b => b.Id.Equals("HID_APPLICATION_ELEMENTS_RibbonListButton")).First();
+
+            // Add the bimbot result view activation button
+            toggleButtonResults = new adWin.RibbonToggleButton();
+            toggleButtonResults.Name = "Bimbot output";
+//            toggleButtonResults.Id = "ID_RESULT_BUTTON";
+            toggleButtonResults.IsEnabled = false;
+            toggleButtonResults.ToolTip = "Show the Bimbots output panel";
+            toggleButtonResults.PropertyChanged += new PropertyChangedEventHandler(toggleButtonResult_PropertyChanged);
+            listBut.Items.Insert(listBut.Items.Count - 3, toggleButtonResults);
+
+            // Add the bimbot service view activation button
+            toggleButtonServices = new adWin.RibbonToggleButton();
+            toggleButtonServices.Name = "Bimbot services";
+//            toggleButtonServices.Id = "ID_SERVICE_BUTTON";
+            toggleButtonServices.IsEnabled = false;
+            toggleButtonServices.ToolTip = "Show the Bimbots services panel";
+            toggleButtonServices.PropertyChanged += new PropertyChangedEventHandler(toggleButtonService_PropertyChanged);
+            listBut.Items.Insert(listBut.Items.Count - 3, toggleButtonServices);
+
+            // Set the event handler to handle te view activation buttons
+//            adWin.ComponentManager.UIElementActivated += new EventHandler<adWin.UIElementActivatedEventArgs>(ComponentManager_UIElementActivated);
+
+
             // Register events
-            application.DockableFrameFocusChanged += new EventHandler<DockableFrameFocusChangedEventArgs>(Application_DockableFrameFocusChanged);
             application.DockableFrameVisibilityChanged += new EventHandler<DockableFrameVisibilityChangedEventArgs>(Application_DockableFrameVisibilityChanged);
             application.ControlledApplication.DocumentOpened += new EventHandler<DocumentOpenedEventArgs>(Application_DocumentOpened);
             application.ControlledApplication.DocumentClosing += new EventHandler<DocumentClosingEventArgs>(Application_DocumentClosing);
@@ -116,152 +123,74 @@ namespace Bimbot
          }
          catch (Exception)
          {
-            return Result.Failed;
+            return Autodesk.Revit.UI.Result.Failed;
          }
 
          // Add view buttons for the Dockable panels in Revits UI
-         return AddViewToggleButton();
+         return Rvt.Result.Succeeded;
 		}
 
-      public Result OnShutdown(UIControlledApplication application)
+
+      public Rvt.Result OnShutdown(UIControlledApplication application)
       {
          // remove in startup added events
-         application.DockableFrameFocusChanged      -= Application_DockableFrameFocusChanged;
          application.DockableFrameVisibilityChanged -= Application_DockableFrameVisibilityChanged;
          application.ControlledApplication.DocumentOpened  -= Application_DocumentOpened;
          application.ControlledApplication.DocumentClosing -= Application_DocumentClosing;
          application.ViewActivated -= Application_ViewActivated;
 
+//         adWin.ComponentManager.UIElementActivated -= ComponentManager_UIElementActivated;
+
          // Remove the command binding on shutdown
          //return base.OnShutdown(application);
-         return Result.Succeeded;
+         return Rvt.Result.Succeeded;
       }
 
+/*
       public static void UpdateServicesPanel()
       {
-         curApp.DockableServicesPanel.UpdateView();         
+  //       curApp.DockableServicesPanel.UpdateView();         
       }
+
 
       public static void UpdateResultPanel()
       {
-         curApp.DockableResultPanel.UpdateView();
+//         curApp.DockableResultPanel.UpdateView();
       }
+*/
 
-
-      void Application_DockableFrameFocusChanged(object sender, DockableFrameFocusChangedEventArgs e)
+      void toggleButtonResult_PropertyChanged(object sender, PropertyChangedEventArgs e)
       {
-         if (!e.FocusGained)
-            return;
-
-         if (e.PaneId == OutputPaneId)
+         if (e.PropertyName == "IsChecked")
          {
-            DockableResultPanel.UpdateView();
-         }
-         else if (e.PaneId == ServicePaneId)
-         {
-            DockableServicesPanel.UpdateView();
+            if (((adWin.RibbonToggleButton)sender).IsChecked)
+               outputPane.Show();
+            else
+               outputPane.Hide();
          }
       }
 
+
+      void toggleButtonService_PropertyChanged(object sender, PropertyChangedEventArgs e)
+      {
+         if (e.PropertyName == "IsChecked")
+         {
+            if (((adWin.RibbonToggleButton)sender).IsChecked)
+               servicePane.Show();
+            else
+               servicePane.Hide();
+         }
+      }
 
       void Application_DockableFrameVisibilityChanged(object sender, DockableFrameVisibilityChangedEventArgs e)
       {
          if (e.PaneId == OutputPaneId)
-         {
-            toggleResultPanel.IsChecked = e.DockableFrameShown;
-            DockableResultPanel.UpdateView();
-         }
+            toggleButtonResults.IsChecked = e.DockableFrameShown;
          else if (e.PaneId == ServicePaneId)
-         {
-            toggleServicesPanel.IsChecked = e.DockableFrameShown;
-            DockableServicesPanel.UpdateView();
-         }
+            toggleButtonServices.IsChecked = e.DockableFrameShown;
       }
 
-      private void BimbotDocumentChanged()
-      {
-         DockableResultPanel.UpdateView();
-         DockableServicesPanel.UpdateView();
-      }
-
-
-      public static void EmulateImportIfc()
-      {
-         TestUIForm form = new TestUIForm();
-         form.Setup(adWin.ComponentManager.Ribbon);
-         form.Show();
-      }
-
-
-      public Result AddViewToggleButton()
-      {
-         try
-         {
-            adWin.RibbonControl ribbon = adWin.ComponentManager.Ribbon;
-
-            // find the view tab
-            foreach (adWin.RibbonTab tab in ribbon.Tabs)
-            {
-               // skip all tabs except the view tab
-               if (tab.Id != "View")
-                  continue;
-
-               // find the manageviews panel
-               foreach (adWin.RibbonPanel panel in tab.Panels)
-               {
-                  // skip all panels except the manageviews
-                  if (panel.Source.Id != "manageviews_shr")
-                     continue;
-
-                  // find the toggleviews listbutton
-                  foreach (adWin.RibbonItem listBut in panel.Source.Items)
-                  {
-                     if (listBut.Id == "HID_APPLICATION_ELEMENTS_RibbonListButton")
-                     {
-                        //Add the bimbot result view activation button
-                        toggleResultPanel = new adWin.RibbonToggleButton();
-                        toggleResultPanel.Name = "Bimbot output";
-                        toggleResultPanel.Id = "ID_RESULT_BUTTON";
-                        toggleResultPanel.IsEnabled = false;
-                        toggleResultPanel.IsToolTipEnabled = true;
-                        toggleResultPanel.IsVisible = true;
-                        toggleResultPanel.ShowImage = false; //  true;
-                        toggleResultPanel.ShowText = true;
-                        toggleResultPanel.ShowToolTipOnDisabled = false;
-                        toggleResultPanel.Text = "Bimbot output";
-                        toggleResultPanel.ToolTip = "Show the Bimbots output panel";
-                        ((adWin.RibbonListButton)listBut).Items.Insert(((adWin.RibbonListButton)listBut).Items.Count - 3, toggleResultPanel);
-
-                        //Add the bimbot service view activation button
-                        toggleServicesPanel = new adWin.RibbonToggleButton();
-                        toggleServicesPanel.Name = "Bimbot services";
-                        toggleServicesPanel.Id = "ID_SERVICE_BUTTON";
-                        toggleServicesPanel.IsEnabled = false;
-                        toggleServicesPanel.IsToolTipEnabled = true;
-                        toggleServicesPanel.IsVisible = true;
-                        toggleServicesPanel.ShowImage = false; //  true;
-                        toggleServicesPanel.ShowText = true;
-                        toggleServicesPanel.ShowToolTipOnDisabled = false;
-                        toggleServicesPanel.Text = "Bimbot services";
-                        toggleServicesPanel.ToolTip = "Show the Bimbots services panel";
-//                        toggleServicesPanel.HostEvent += new System.ComponentModel.PropertyChangedEventHandler(changedServices);
-                        ((adWin.RibbonListButton)listBut).Items.Insert(((adWin.RibbonListButton)listBut).Items.Count - 3, toggleServicesPanel);
-                        adWin.ComponentManager.UIElementActivated += new EventHandler<adWin.UIElementActivatedEventArgs>(ComponentManager_UIElementActivated);
-
-                        return Result.Succeeded;
-                     }
-                  }
-               }
-            }
-         }
-         catch (Exception e)
-         {
-            //failed to add button, don't do a thing
-         }
-         return Result.Failed;
-      }
-
-
+/*
       void ComponentManager_UIElementActivated(object sender, adWin.UIElementActivatedEventArgs e)
       {
          if (e != null && e.Item != null && e.Item.Id != null)
@@ -284,46 +213,56 @@ namespace Bimbot
             }
          }
       }
-      
+     */ 
 
       void Application_ViewActivated(object sender, ViewActivatedEventArgs args)
       {
+         if (args.Document == null)
+            return;
+
          // If document exists it is already opened
          if (openedDocuments.ContainsKey(args.Document))
          {
-            // Find or add Schema
-            FindOrCreateSchema(args.Document);
+            BimbotDocument curDoc = openedDocuments[args.Document];
 
-            DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
-            DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
+            // Change the data context of viewing panels to the current document
+            DockableResultPanel.DataContext = curDoc;
+            DockableServicesPanel.DataContext = curDoc;
+            ExtEvents.ChangeDocumentHandler.documentToUpdate = curDoc;
          }
       }
 
 
       public void Application_DocumentOpened(object sender, DocumentOpenedEventArgs args)
       {
-         if (args.Document.IsLinked)
+         if (args.Document == null ||
+             (Path.GetTempPath().StartsWith(Path.GetDirectoryName(args.Document.PathName)) &&
+              args.Document.PathName.EndsWith(".ifc.RVT")))
             return;
 
          try
          {
-            // Find or add Schema
-            FindOrCreateSchema(args.Document);
-
             openedDocuments.Add(args.Document, new BimbotDocument(args.Document));
+            BimbotDocument curDoc = openedDocuments[args.Document];
+
+            DockableResultPanel.DataContext = curDoc;
+            DockableServicesPanel.DataContext = curDoc;
+            ExtEvents.ChangeDocumentHandler.documentToUpdate = curDoc;
+
+            //            ActiveDocument = curApp.openedDocuments[args.Document];
             outputPane = uiApplication.GetDockablePane(OutputPaneId);
             servicePane = uiApplication.GetDockablePane(ServicePaneId);
-            toggleResultPanel.IsChecked = true;
-            toggleResultPanel.IsEnabled = true;
-            toggleServicesPanel.IsChecked = true;
-            toggleServicesPanel.IsEnabled = true;
+            toggleButtonResults.IsChecked = true;
+            toggleButtonResults.IsEnabled = true;
+            toggleButtonServices.IsChecked = true;
+            toggleButtonServices.IsEnabled = true;
 
             //Temp insert fixed service
 //            openedDocuments[args.Document].AddService(new Service(6, "Limestone Brickalizer", "Generate brick distribution for limestone walls", "ifcanalysis", null, null, null, null, "http://ec2-18-218-56-112.us-east-2.compute.amazonaws.com/"));
 //            openedDocuments[args.Document].registeredServices[0].soid = -1;
 
-            DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
-            DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
+//            DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
+//            DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
          }
          catch (Exception e)
          {
@@ -334,9 +273,15 @@ namespace Bimbot
 
       public void Application_DocumentClosing(object sender, DocumentClosingEventArgs args)
       {
+         if (args.Document == null ||
+             (Path.GetTempPath().StartsWith(Path.GetDirectoryName(args.Document.PathName)) &&
+              args.Document.PathName.EndsWith(".ifc.RVT")))
+            return;
+
          // Remove the document from the list of opened documents (holding bimbot data)
-         if (args.Document != null)
+         if (openedDocuments.ContainsKey(args.Document))
          {
+//            ActiveDocument = null;
             openedDocuments[args.Document].Close();
             openedDocuments.Remove(args.Document);
          }
@@ -362,96 +307,5 @@ namespace Bimbot
 			}
 		}
 
-
-      private void FindOrCreateSchema(Document doc)
-      {
-         // find schema
-         Schema = Schema.Lookup(SchemaGuid);
-
-         try
-         {
-            // create schema if not found
-            if (Schema == null)
-            {
-               // Start transaction
-               Transaction createSchema = new Transaction(doc, "Create Schema");
-               createSchema.Start();
-
-               // Build subSchema (services)
-               SchemaBuilder serviceBldr = new SchemaBuilder(ServiceGuid);
-
-               // Set read and write access attributes and a name
-               serviceBldr.SetReadAccessLevel(AccessLevel.Public);
-               serviceBldr.SetWriteAccessLevel(AccessLevel.Application);
-               serviceBldr.SetApplicationGUID(ApplicationGuid);
-               serviceBldr.SetVendorId(VendorId);
-               serviceBldr.SetSchemaName("BimbotService");
-
-               // create fields for relevant attributes of services
-               FieldBuilder fieldBldr = serviceBldr.AddSimpleField("hostName", typeof(string));
-               fieldBldr.SetDocumentation("Name of the host for this service.");
-               fieldBldr = serviceBldr.AddSimpleField("hostUrl", typeof(string));
-               fieldBldr.SetDocumentation("Url of the host for this service.");
-               fieldBldr = serviceBldr.AddSimpleField("hostDesc", typeof(string));
-               fieldBldr.SetDocumentation("Decription of the host for this service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcName", typeof(string));
-               fieldBldr.SetDocumentation("Name of the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcId", typeof(int));
-               fieldBldr.SetDocumentation("Id of the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcDesc", typeof(string));
-               fieldBldr.SetDocumentation("Decription of the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcProvider", typeof(string));
-               fieldBldr.SetDocumentation("Provider of the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcProvIcon", typeof(string));
-               fieldBldr.SetDocumentation("Provider Icon of the service.");
-               fieldBldr = serviceBldr.AddArrayField("srvcInputs", typeof(string));
-               fieldBldr.SetDocumentation("List of input types of the service.");
-               fieldBldr = serviceBldr.AddArrayField("srvcOutputs", typeof(string));
-               fieldBldr.SetDocumentation("List of output types the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcUrl", typeof(string));
-               fieldBldr.SetDocumentation("Url of the service.");
-
-               /* TODO create user depending service */
-               fieldBldr = serviceBldr.AddSimpleField("srvcToken", typeof(string));
-               fieldBldr.SetDocumentation("Token needed to run the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcSoid", typeof(int));
-               fieldBldr.SetDocumentation("Soid needed to run the service.");
-               fieldBldr = serviceBldr.AddSimpleField("srvcTrigger", typeof(int));
-               fieldBldr.SetDocumentation("Trigger that causes the service to execute.");
-
-               fieldBldr = serviceBldr.AddSimpleField("resultType", typeof(string));
-               fieldBldr.SetDocumentation("Last result type delivered by the service.");
-               fieldBldr = serviceBldr.AddSimpleField("resultData", typeof(string));
-               fieldBldr.SetDocumentation("Last results delivered by the service.");
-               fieldBldr = serviceBldr.AddSimpleField("resultDate", typeof(string));
-               fieldBldr.SetDocumentation("Last date the service was executed.");
-               ServiceSchema = serviceBldr.Finish(); // register the subSchema object
-
-               //Build mainSchema (Bimbot Schema)
-               SchemaBuilder schemaBldr = new SchemaBuilder(SchemaGuid);
-
-               // Set read and write access attributes and a name
-               schemaBldr.SetReadAccessLevel(AccessLevel.Public);
-               schemaBldr.SetWriteAccessLevel(AccessLevel.Application);
-               schemaBldr.SetApplicationGUID(ApplicationGuid);
-               schemaBldr.SetVendorId(VendorId);
-               schemaBldr.SetSchemaName("BimbotSchema");
-
-               // create a field to store services
-               fieldBldr = schemaBldr.AddArrayField("services", typeof(Entity));
-               fieldBldr.SetDocumentation("List of services assigned to this project.");
-               fieldBldr.SetSubSchemaGUID(ServiceGuid);
-
-               Schema = schemaBldr.Finish(); // register the Schema object
-               createSchema.Commit();
-            }
-            else
-               ServiceSchema = Schema.Lookup(ServiceGuid);
-         }
-         catch (Exception e)
-         {
-            Console.WriteLine(e);
-         }
-      }
    }
 }

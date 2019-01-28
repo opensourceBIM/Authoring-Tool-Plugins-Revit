@@ -36,10 +36,10 @@
                             </StackPanel>
                         </Grid>
                         <Grid Grid.Row="0" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding Topic.Title}" />
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding Path=Key}" />
                         </Grid>
                         <Grid Grid.Row="1" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding Topic.Description}" />
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding Path=Key}" />
                         </Grid>
                     </Grid>
                 </DataTemplate>

@@ -1,4 +1,8 @@
 ﻿using Autodesk.Revit.DB;
+using Autodesk.Revit.UI;
+using Autodesk.Revit.UI.Selection;
+using Autodesk.Revit.ApplicationServices; 
+using Autodesk.Revit.Attributes;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,6 +17,19 @@ namespace Bimbot.Utils
       public static string ExportProjectToIFC(Document doc)
       {
          IFCExportOptions ifcOptions = new IFCExportOptions();
+
+/*
+         //Get an instance of IFCExportConfiguration
+         IFCExportConfiguration selectedConfig = modelSelection.Configuration;
+
+         //Get the current view Id, or -1 if you want to export the entire model
+         ElementId activeViewId = GenerateActiveViewIdFromDocument(doc);
+         selectedConfig.ActiveViewId =
+                 selectedConfig.UseActiveViewGeometry ? activeViewId.IntegerValue : -1;
+
+         //Update the IFCExportOptions
+         selectedConfig.UpdateOptions(IFCOptions, activeViewId);
+*/
          {
             ifcOptions.FileVersion = IFCVersion.IFC2x3;
             ifcOptions.WallAndColumnSplitting = false;
@@ -38,6 +55,13 @@ namespace Bimbot.Utils
             ifcOptions.AddOption("TessellationLevelOfDetail", "0.5");
             ifcOptions.AddOption("StoreIFCGUID", "true");
          }
+         /*            // get the revit form and set its cursor to busy
+            System.Windows.Forms.Control form = System.Windows.Forms.Control.FromHandle(Process.GetCurrentProcess().MainWindowHandle);
+            if (null != form) form.Cursor = Cursors.WaitCursor;
+
+            //RevitStatusText.Set("Exporting Revit Project to IFC");
+            Application.DoEvents();
+         */
 
          Transaction trans = new Transaction(doc, "export model");
          trans.Start();

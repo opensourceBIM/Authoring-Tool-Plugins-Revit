@@ -27,6 +27,7 @@ namespace WpfBcfPanelTester
       public MainWindow()
       {
          InitializeComponent();
+         this.DataContext = App.test;
       }
 
       private void Browse1_Click(object sender, RoutedEventArgs e)
@@ -42,8 +43,8 @@ namespace WpfBcfPanelTester
             byte[] fileBytes = File.ReadAllBytes(dlg.FileName);
             fileName.Text = dlg.FileName;
 
-            BcfFile bcfFile = new BcfFile(fileBytes);
-
+            DataContext = (new BcfFile(fileBytes)).markups;
+/*
             if (bcfFile != null)
             {
                //Set markups to interface
@@ -52,8 +53,8 @@ namespace WpfBcfPanelTester
                   issuesList.Items.Add(entry.Value);
                }
             }
+*/
          }
-
       }
 
       private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e)

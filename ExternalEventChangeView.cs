@@ -14,7 +14,7 @@ namespace Bimbot.ExternalEvents
    /// <summary>
    /// Obfuscation Ignore for External Interface
    /// </summary>
-   public class ExtEvntChangeView : IExternalEventHandler
+   public class ExtEvntSetViewpoint : IExternalEventHandler
    {
       public VisualizationInfo v;
 

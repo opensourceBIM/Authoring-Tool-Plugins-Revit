@@ -5,11 +5,83 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
         xmlns:local="clr-namespace:Bimbot.BimbotUI"
         mc:Ignorable="d" 
-        d:DesignHeight="450" d:DesignWidth="800" Title="Add Services" WindowStartupLocation="CenterScreen" ResizeMode="NoResize" Icon="pack://siteoforigin:,,,/Resources/BimServer.png">
+        x:Name="RevitBimbot" Background="{DynamicResource {x:Static SystemColors.MenuBarBrushKey}}"        
+        d:DesignHeight="450" d:DesignWidth="800" Title="Add Services" WindowStartupLocation="CenterScreen" ResizeMode="NoResize">
     <Grid>
-        <GroupBox Header="Filter Services" HorizontalAlignment="Left" Height="401" Margin="510,10,0,0" VerticalAlignment="Top" Width="274">
-            <Grid HorizontalAlignment="Left"  VerticalAlignment="Top">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="1*"/>
+        </Grid.ColumnDefinitions>
+        <GroupBox Grid.Column="0" Header="Avialable Services" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="4" Padding="3">
+            <Grid VerticalAlignment="Stretch" HorizontalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1*"/>
+                    <ColumnDefinition Width="3*"/>
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <ListView Grid.Row="0" Grid.ColumnSpan="2" HorizontalContentAlignment="Stretch" Margin="2" SelectionChanged="SetButtonState" ItemsSource="{Binding AvailableServices, Mode=OneWay}" SelectedItem="{Binding CurrentService}">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Margin="2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="auto" />
+                                </Grid.ColumnDefinitions>
+                                <Image Grid.Column="0" MaxHeight="60" Margin="2" Source="{Binding Icon}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
+                                <StackPanel Grid.Column="1" Margin="2">
+                                    <Label Padding="0" FontWeight="Bold" Content="{Binding Name}" />
+                                    <Label Padding="0" FontSize="10" Content="{Binding Description}" />
+                                    <Label Padding="0" Content="{Binding Provider.Name}" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <WrapPanel  HorizontalAlignment="Left">
+                                        <Ellipse Fill="{Binding Provider.RegisteredColor }" HorizontalAlignment="Left" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
+                                        <Label Padding="0" FontSize="8" Content="Authorized"/>
+                                    </WrapPanel>
+                                    <WrapPanel Grid.Row="1" Grid.Column="2" HorizontalAlignment="left">
+                                        <Ellipse Fill="{Binding RunningColor}" HorizontalAlignment="Left" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
+                                        <Label Padding="0" FontSize="8" Content="Running"/>
+                                    </WrapPanel>
+                                    <WrapPanel Grid.Row="2" Grid.Column="2" HorizontalAlignment="left">
+                                        <Label Padding="0" FontSize="8" Content="{Binding result.lastRun}"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                                <Separator Margin="-2" Grid.ColumnSpan="3" VerticalAlignment="Bottom"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
 
+                <Button Grid.Row="1" Grid.Column="0" Width="100" Margin="2" HorizontalAlignment="Left" Click="RefreshButton_Click">Refresh list</Button>
+                <Button x:Name="ButtonAuthorize" Grid.Row="1" Grid.Column="1" Width="100" Margin="2" HorizontalAlignment="Right" Click="buttonAuthorize_Click">Authorize</Button>
+                <Label Grid.Row="2" Grid.Column="0">Trigger:</Label>
+                <ComboBox x:Name="newTrigger" Grid.Row="2" Grid.Column="1" Margin="2" SelectionChanged="SetButtonState"/>
+                <Label Grid.Row="3" Grid.Column="0">Token:</Label>
+                <TextBox x:Name="newToken" Grid.Row="3" Grid.Column="1"  Margin="2" TextChanged="SetButtonState"/>
+                <Label Grid.Row="4" Grid.Column="0">Ifc Export config:</Label>
+                <ComboBox x:Name="newConfiguration" Grid.Row="4" Grid.Column="1" Margin="2" SelectionChanged="SetButtonState">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Name}" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+                <Button Grid.Row="5" Grid.Column="1"  Margin="2" Width="100" HorizontalAlignment="Center" IsCancel="True">Cancel</Button>
+                <Button x:Name="ButtonAdd" Grid.Row="5" Grid.Column="1"  Margin="2" Width="100" HorizontalAlignment="Right" IsDefault="True" Click="AddServiceClick">Add service</Button>
+            </Grid>
+        </GroupBox>
+        <GroupBox Grid.Column="1" Header="Filter Services" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+            <Grid HorizontalAlignment="Left"  VerticalAlignment="Top">
             </Grid>
         </GroupBox>
     </Grid>

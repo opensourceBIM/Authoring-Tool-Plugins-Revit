@@ -1,343 +1,539 @@
 ﻿using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.ExtensibleStorage;
-using Autodesk.Revit.UI;
 using Bimbot.Bcf;
 using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
+using System.Security.Cryptography;
 
 namespace Bimbot.Objects
 {
-   public class ServiceAuthorization
+   public class Service : INotifyPropertyChanged
    {
-   }
+      #region Static members and functions
+      private const int ZipLeadBytes = 0x04034b50;
+      private const ushort GZipLeadBytes = 0x8b1f;
+      private const string KalkZandsteenResponse = "F:\\RevitBimbot\\result_final.bcf";
+      private const string NameField = "Name";
+      private const string DescriptionField = "Description";
+      private const string InputsField = "Inputs";
+      private const string OutputsField = "Outputs";
+      private const string UrlField = "Url";
+      private const string AuthorizationField = "Code";
+      //      private const string SoidField = "Soid";
+      private const string ProviderField = "Provider";
+      private const string TriggersField = "Triggers";
+      private const string ResultTypeField = "ResultType";
+      private const string ResultDataField = "ResultData";
+      private const string LastRunField = "LastRun";
+      private static readonly byte[] SALT = new byte[] { 0x25, 0xdc, 0x4a, 0x11, 0xda, 0x1d, 0x7b, 0x77, 0x5c, 0x2e, 0x7f, 0xfa, 0x5d, 0x18, 0x5a, 0xc3 };
 
-
-   public class Service
-   {
-      public class SOauth
+      private static bool IsCompressedData(byte[] data)
       {
-         public string registerUrl;
-         public string authorizationUrl;
-         public string tokenUrl;
+         Debug.Assert(data.Length >= 4);
+
+         return BitConverter.ToInt32(data, 0) == ZipLeadBytes ||
+                BitConverter.ToUInt16(data, 0) == GZipLeadBytes;
       }
 
-      private const int ZIP_LEAD_BYTES = 0x04034b50;
-      private const ushort GZIP_LEAD_BYTES = 0x8b1f;
+
+      public static string Encrypt(string plain, string password)
+      {
+         if (password == null)
+            return plain;
+
+         //convert password to key
+         Rfc2898DeriveBytes pdb = new Rfc2898DeriveBytes(password, SALT);
+         byte[] encrypted;
+         byte[] iv;
+
+         //Create instance of the rijndael encryption algorithm        
+         using (Rijndael rijndael = Rijndael.Create())
+         {
+            rijndael.Key = pdb.GetBytes(32);
+            rijndael.GenerateIV();
+            iv = rijndael.IV;
+
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+               using (CryptoStream cryptoStream = new CryptoStream(memoryStream, rijndael.CreateEncryptor(), CryptoStreamMode.Write))
+               {
+                  using (StreamWriter swEncrypt = new StreamWriter(cryptoStream))
+                  {
+                     swEncrypt.Write(plain);
+                  }
+                  encrypted = memoryStream.ToArray();
+               }
+            }            
+         }
+         return Convert.ToBase64String(iv.Concat(encrypted).ToArray());
+      }
+
+      public static string Decrypt(string encrypted, string password)
+      {
+         //Convert the string to bytes
+         byte[] cypher = Convert.FromBase64String(encrypted);       
+
+         //convert password to key
+         Rfc2898DeriveBytes pdb = new Rfc2898DeriveBytes(password, SALT);
+         string decrypted;
+
+         //Create instance of the rijndael encryption algorithm        
+         using (Rijndael rijndael = Rijndael.Create())
+         {
+            rijndael.Key = pdb.GetBytes(32);
+            rijndael.IV = cypher.Take(16).ToArray();
+
+            using (MemoryStream memoryStream = new MemoryStream())
+            {
+               using (CryptoStream cryptoStream = new CryptoStream(memoryStream, rijndael.CreateDecryptor(), CryptoStreamMode.Write))
+               {
+                  using (StreamWriter swDecrypt = new StreamWriter(cryptoStream))
+                  {
+                     swDecrypt.Write(cypher.Skip(16).ToArray());
+                  }
+                  decrypted = Convert.ToBase64String(memoryStream.ToArray());
+               }
+            }
+         }
+         return decrypted;
+      }
+
+      private static Schema RvtSchema;
+      private static readonly Guid RvtGuid = new Guid("a54b4c89-0ee7-4fae-8fbd-b13b04f01a01"); //b13b04 = bimbot, f01 = service data, a01 = version 0.1
+
+      public static Guid FindOrCreateSchema(Document doc)
+      {
+         // find schema
+         RvtSchema = Schema.Lookup(RvtGuid);
+
+         try
+         {
+            // Find or read subschemas needed
+            Guid provGuid = Provider.FindOrCreateSchema(doc);
+            
+            // create schema if not found
+            if (RvtSchema == null)
+            {
+               // Start transaction
+               Transaction createSchema = new Transaction(doc, "Create Service Schema");
+               createSchema.Start();
+
+               // Build schema
+               SchemaBuilder serviceBldr = new SchemaBuilder(RvtGuid);
+
+               // Set read and write access attributes and a name
+               serviceBldr.SetReadAccessLevel(AccessLevel.Application);
+               serviceBldr.SetWriteAccessLevel(AccessLevel.Application);
+               serviceBldr.SetApplicationGUID(RevitBimbot.ApplicationGuid);
+               serviceBldr.SetVendorId(RevitBimbot.VendorId);
+               serviceBldr.SetSchemaName("BimBotService");
+
+               // create fields for relevant attributes of services
+               FieldBuilder fieldBldr = serviceBldr.AddSimpleField(NameField, typeof(string));
+               fieldBldr.SetDocumentation("Name of the service.");
+               fieldBldr = serviceBldr.AddSimpleField(DescriptionField, typeof(string));
+               fieldBldr.SetDocumentation("Decription of the service.");
+               fieldBldr = serviceBldr.AddArrayField(InputsField, typeof(string));
+               fieldBldr.SetDocumentation("List of input types of the service.");
+               fieldBldr = serviceBldr.AddArrayField(OutputsField, typeof(string));
+               fieldBldr.SetDocumentation("List of output types the service.");
+               fieldBldr = serviceBldr.AddSimpleField(UrlField, typeof(string));
+               fieldBldr.SetDocumentation("Url of the service.");
+               fieldBldr = serviceBldr.AddArrayField(TriggersField, typeof(string));
+               fieldBldr.SetDocumentation("List of triggers that activate the service.");
+//               fieldBldr = serviceBldr.AddSimpleField(SoidField, typeof(int));
+//               fieldBldr.SetDocumentation("Soid of the service.");
+               fieldBldr = serviceBldr.AddSimpleField(ProviderField, typeof(string));
+               fieldBldr.SetDocumentation("Name of the Provider of the service.");
+               fieldBldr = serviceBldr.AddSimpleField(AuthorizationField, typeof(string));
+               fieldBldr.SetDocumentation("Code used for authorizing the service.");
+
+               fieldBldr = serviceBldr.AddSimpleField(LastRunField, typeof(string));
+               fieldBldr.SetDocumentation("Last date the service was executed.");
+               fieldBldr = serviceBldr.AddSimpleField(ResultTypeField, typeof(string));
+               fieldBldr.SetDocumentation("Last result type delivered by the service.");
+               fieldBldr = serviceBldr.AddSimpleField(ResultDataField, typeof(string));
+               fieldBldr.SetDocumentation("Last results delivered by the service.");
+               RvtSchema = serviceBldr.Finish(); // register the subSchema object
+
+               createSchema.Commit();
+            }
+            else
+               RvtSchema = Schema.Lookup(RvtGuid);
+         }
+         catch (Exception e)
+         {
+            Console.WriteLine(e);
+         }
+         return RvtGuid;
+      }
+      #endregion
 
 
-      #region JSON Attributes (do not change)
-      public int Id { get; } // fieldBldr = serviceBldr.AddSimpleField("srvcId", typeof(int));
-      public string Name { get; } // fieldBldr = serviceBldr.AddSimpleField("srvcName", typeof(string));
-      public string Description { get; } // fieldBldr = serviceBldr.AddSimpleField("srvcDesc", typeof(string));
-      public string Provider { get; } // fieldBldr = serviceBldr.AddSimpleField("srvcProvider", typeof(string));
-      public string ProviderIcon { get; } // fieldBldr = serviceBldr.AddSimpleField("srvcProvIcon", typeof(string));
-      public IList<string> Inputs { get; } // fieldBldr = serviceBldr.AddArrayField("srvcInputs", typeof(string));
-      public IList<string> Outputs { get; } // fieldBldr = serviceBldr.AddArrayField("srvcOutputs", typeof(string));
-      public SOauth Oauth { get; }
-      public string ResourceUrl { get; } // fieldBldr = serviceBldr.AddSimpleField("srvcUrl", typeof(string));????????
+      #region members
+      #region Service Attributes (JSON and internal)
+      public string Name { get; } 
+      public string Description { get; } 
+      public IList<string> Inputs { get; } 
+      public IList<string> Outputs { get; } 
+      public string Url { get; private set; }
+      #endregion
 
-      // Service profile rights for users and special settings. 
-      public List<ServiceProfile> profile { get; }
-      public int soid;
-      public RevitEvntTrigger Trigger;
-      //public string srvcUrl;
-      public string srvcToken;
+      #region Service only Attributes (not in JSON)
+      public Entity RvtEntity { get; private set; }
+      public Provider Provider { get; private set; }
+      public int? Soid { get; private set; }
+      public string AuthorizationCode { get; private set; }
 
-      // property not in json, but added for ease of use in application
-      public SProvider host;
+      public List<RevitEvntTrigger> Triggers { get; }
+      public ServiceResult Result { get; private set; }
+
+      private string Password;
+
+      public bool IsUpToDate;
+      private bool _isRunning;
+      public bool IsRunning
+      {
+         get { return this._isRunning; }
+         set
+         {
+            if (this._isRunning != value)
+            {
+               this._isRunning = value;
+               this.NotifyPropertyChanged("IsRunning");
+            }
+         }
+      }
+     
+      public event PropertyChangedEventHandler PropertyChanged;
+
+      public void NotifyPropertyChanged(string propName)
+      {
+         if (PropertyChanged != null)
+            PropertyChanged(this, new PropertyChangedEventArgs(propName));
+      }
+
+      //TODO IFC export settings (configuration of the exporter)
+
+      // UI visualization getters (conversion)
+      public string Icon
+      {
+         get
+         {
+            return Url == null || Provider.Icon == null ? "" :
+               (Provider.Icon.StartsWith("http") ? Provider.Icon :
+               Url.Substring(0, Url.IndexOf('/', 9)) + Provider.Icon);
+         }
+      }
+
+      private bool UrlIsValid()
+      {
+         return Url.StartsWith("http://") || Url.StartsWith("https://");
+      }
+
+      public Brush ProtectedColor
+      {
+         get
+         {
+            return (UrlIsValid()) ? new SolidColorBrush(Colors.Green) : new SolidColorBrush(Colors.Red);
+         }
+      }
+
+      public Brush RunningColor
+      {
+         get
+         {
+            return IsRunning ? new SolidColorBrush(Colors.Green) : new SolidColorBrush(Colors.Red);
+         }
+      }
+      #endregion
       #endregion
 
 
 
-      public ServiceResult result { get; set; }
-
-      public Entity serviceEntity;
-
-      public string ProviderIconUrl
+      #region constructors
+      // Copy constructor
+      public Service(Service service)
       {
-         get {
-            return ResourceUrl == null ? "" : 
-               (ResourceUrl.StartsWith("http") ? ResourceUrl : 
-               ResourceUrl.Substring(0, ResourceUrl.IndexOf('/',9)) + ProviderIcon);
-         }
+         this.RvtEntity = null;
+         this.Name = service.Name;
+         this.Description = service.Description;
+         this.Inputs = new List<string>(service.Inputs);
+         this.Outputs = new List<string>(service.Outputs);
+         this.Url = service.Url; // => TODO change to combination of URL and Soid
+//         this.Soid = null;       // => not needed when in URL combination
+         this.Provider = service.Provider;
+         this.AuthorizationCode = service.AuthorizationCode; 
+
+         this.Triggers = new List<RevitEvntTrigger>();
+         this.Result = null;
+         this.IsUpToDate = false;
+         this.IsRunning = false;
       }
 
-      #region constructors
       // JSON constructor
       [JsonConstructor]
-      public Service(int id, string name, string description, string provider, string providerIcon, 
-                     List<string> inputs, List<string> outputs, SOauth oauth, string resourceUrl)
+      public Service(string name, string description, string provider, string providerIcon, 
+                     List<string> inputs, List<string> outputs, JsonOauth oauth, string resourceUrl)
       {
-         Id = id;        
-         //Temporary fix for demo
-         Name = /*name.Equals("FixedFileService") ? "Validate Model Service" :*/ name;
-         Description = description;
-         Provider = provider;
-         ProviderIcon = providerIcon;
-         Inputs = inputs;
-         Outputs = outputs;
-         Oauth = oauth;
-         ResourceUrl = resourceUrl;
+         this.RvtEntity = null;
+         this.Name = name;
+         this.Description = description;
+         this.Inputs = inputs;
+         this.Outputs = outputs;
+         this.Url = resourceUrl;
+//         this.Soid = null;
+         this.AuthorizationCode = null;
+         this.Provider = new Provider(provider, providerIcon, oauth);
+         this.Triggers = new List<RevitEvntTrigger>();
+         this.Result = null;
+
+         this.IsUpToDate = false;
+         this.IsRunning = false;
       }
 
 
       // Revit Extensible Storage constructor
-      public Service(Entity serviceEnt)
+      public Service(Entity serviceEnt, Dictionary<string, Provider> providers)
       {
-         serviceEntity = serviceEnt;
+         this.RvtEntity = serviceEnt;
+         this.Name = serviceEnt.Get<string>(NameField);
+         this.Description = serviceEnt.Get<string>(DescriptionField);
+         this.Inputs = serviceEnt.Get<IList<string>>(InputsField);
+         this.Outputs = serviceEnt.Get<IList<string>>(OutputsField);
+         this.Url = serviceEnt.Get<string>(UrlField);
+         this.AuthorizationCode = serviceEnt.Get<string>(AuthorizationField);
+//         this.Soid = serviceEnt.Get<int>(SoidField);
+         Debug.Assert(providers.ContainsKey(serviceEnt.Get<string>(ProviderField)));
+         this.Provider = providers[serviceEnt.Get<string>(ProviderField)];
 
-         Id = serviceEnt.Get<int>("srvcId");
-         Name = serviceEnt.Get<string>("srvcName");
-
-         //Temporary fix for demo
-//         Name = Name.Equals("FixedFileService") ? "Validate Model Service" : Name;
+         //Read the triggers
+         this.Triggers = new List<RevitEvntTrigger>();
+         foreach (string trigger in serviceEnt.Get<IList<string>>(TriggersField))
+            this.Triggers.Add((RevitEvntTrigger)Enum.Parse(typeof(RevitEvntTrigger), trigger, true));
          
-         Description = serviceEnt.Get<string>("srvcDesc");
-         Provider = serviceEnt.Get<string>("srvcProvider");
-         ProviderIcon = serviceEnt.Get<string>("srvcProvIcon");
-         Inputs = serviceEnt.Get<IList<string>>("srvcInputs");
-         Outputs = serviceEnt.Get<IList<string>>("srvcOutputs");
-         ResourceUrl = serviceEnt.Get<string>("srvcUrl");
-         Trigger = (RevitEvntTrigger)serviceEnt.Get<int>("srvcTrigger");
-         soid = serviceEnt.Get<int>("srvcSoid");
-         srvcToken = serviceEnt.Get<string>("srvcToken");
-
-         //         curService.serviceEntity.Set<string>("hostName", curService.host.name);
-         //         curService.serviceEntity.Set<string>("hostUrl", curService.host.listUrl);
-         //         curService.serviceEntity.Set<string>("hostDesc", curService.host.description);
-
-         result = new ServiceResult();
-         result.isBcf = serviceEnt.Get<string>("resultType").Equals("bcf");
-         result.data = serviceEnt.Get<string>("resultData");
-         result.lastRun = DateTime.Parse(serviceEnt.Get<string>("resultDate"));
-         if (result.isBcf)
-            result.bcf = new BcfFile(Convert.FromBase64String(result.data));
-
-         /* temp solution to fix previous stored OAuth data */
-/*         if (Name.Equals("Validate Model Service"))
+         //Read the result data (and in case of BCF parse it)
+         this.Result = new ServiceResult();
+         this.Result.data = serviceEnt.Get<string>(ResultDataField);
+         if (Result.data != "")
          {
-            if (ResourceUrl.Equals("https://ifcanalysis.bimserver.services/services"))
-            {
-               soid = 327758;
-               srvcToken = "895f555dbe081dbec5b8e4222678bf778b39c59793af7e40d4b7a1acae5d67429fbfdc68f3725742f07c1e5f4435f614511f9a3126250c0b634edf4b2b0ed613";
-            }
+            this.Result.isBcf = serviceEnt.Get<string>(ResultTypeField).Equals("bcf");
+            this.Result.lastRun = DateTime.Parse(serviceEnt.Get<string>(LastRunField));
+            if (this.Result.isBcf)
+               this.Result.bcf = new BcfFile(Convert.FromBase64String(this.Result.data));
          }
- */
+         else
+            this.Result = null;
+
+         this.IsUpToDate = false;
+         this.IsRunning = false;
       }
       #endregion
 
-
-      public bool ToExtensibleStorage()
+      public void ReAssignProvider(Dictionary<string, Provider> providers)
       {
-         /*
-         fieldBldr = serviceBldr.AddSimpleField("srvcUrl", typeof(string));
-         fieldBldr = serviceBldr.AddSimpleField("srvcToken", typeof(string));
-         fieldBldr = serviceBldr.AddSimpleField("srvcSoid", typeof(int));
-         fieldBldr = serviceBldr.AddSimpleField("resultType", typeof(string));
-         fieldBldr = serviceBldr.AddSimpleField("resultData", typeof(string));
-         fieldBldr = serviceBldr.AddSimpleField("resultDate", typeof(string));
-         */
-         return false; //failed to write
+         Provider = providers[Provider.Name];
+      }
+
+      public void SetAutherizationCode(string code)
+      {
+         this.AuthorizationCode = code;
+         IsUpToDate = false;
       }
 
 
-      internal static bool IsPkZipCompressedData(byte[] data)
-      {
-         Debug.Assert(data != null && data.Length >= 4);
-         // if the first 4 bytes of the array are the ZIP signature then it is compressed data
-         return (BitConverter.ToInt32(data, 0) == ZIP_LEAD_BYTES);
+      public void SetSoid(int soid)
+      {         
+         this.Soid = soid;
+         IsUpToDate = false;
       }
 
-      internal static bool IsGZipCompressedData(byte[] data)
+      public void Protect(string password)
       {
-         Debug.Assert(data != null && data.Length >= 2);
-         // if the first 2 bytes of the array are theG ZIP signature then it is compressed data;
-         return (BitConverter.ToUInt16(data, 0) == GZIP_LEAD_BYTES);
+         Password = password;
+         IsUpToDate = false;
       }
 
-      public static bool IsCompressedData(byte[] data)
+      public void UnProtect(string password)
       {
-         return IsPkZipCompressedData(data) || IsGZipCompressedData(data);
+         // If the url starts with http it is not encrypted
+         if (!UrlIsValid())
+            return;
+
+         // If the decoded Url does not start with http the password does not match
+         string decUrl = Decrypt(Url, password);
+         if (!UrlIsValid())
+            return;
+
+         Url = decUrl;
+         AuthorizationCode = Decrypt(AuthorizationCode, password);
       }
-      
-      public string Run(byte[] data)
+
+      public void AddTrigger(RevitEvntTrigger trigger)
       {
-         if (soid <= 0)
+         Triggers.Add(trigger);
+         IsUpToDate = false;
+      }
+
+
+      private void SetServiceResult(byte[] bytes)
+      {
+         Result = new ServiceResult();
+         Result.lastRun = DateTime.Now;
+         Result.isBcf = (bytes.Length >= 4 || IsCompressedData(bytes));
+         if (Result.isBcf)
          {
-            // Special for Thomas Brick Bot not to run online
-            byte[] fileBytes = File.ReadAllBytes("C:\\DataLocal\\RunningProjects\\DemoLeon\\result_final.bcf");
-
-            result = new ServiceResult();
-            result.isBcf = true;
-            result.data = Convert.ToBase64String(fileBytes);
-            result.bcf = new BcfFile(fileBytes);
-            result.lastRun = DateTime.Now;
+            Result.data = Convert.ToBase64String(bytes);
+            Result.bcf = new BcfFile(bytes);
          }
          else
          {
-            WebRequest myWebRequest;
-            myWebRequest = WebRequest.Create(ResourceUrl + (soid == -1 ? "" : "/" + soid.ToString()));
-
-            HttpWebRequest myHttpWebRequest = (HttpWebRequest)myWebRequest;
-            myHttpWebRequest.Method = "POST";
-            myHttpWebRequest.Headers.Add("Input-Type", "IFC_STEP_2X3TC1");
-            myHttpWebRequest.Headers.Add("Token", srvcToken);
-            myHttpWebRequest.Headers.Add("Accept-Flow", "SYNC");
-
-            Stream requestStream = myHttpWebRequest.GetRequestStream();
-            requestStream.Write(data, 0, data.Length);
-            //         Thread.Sleep(1000);
-            WebResponse response = myHttpWebRequest.GetResponse() as HttpWebResponse;
-            if (response != null)
-            {
-               using (Stream responseStream = response.GetResponseStream())
-               {
-                  if (responseStream != null)
-                  {
-                     //                  BinaryReader binReader = new BinaryReader(responseStream);
-                     byte[] bytes;
-
-                     using (MemoryStream ms = new MemoryStream())
-                     {
-                        responseStream.CopyTo(ms);
-                        bytes = ms.ToArray();
-                     }
-
-                     result = new ServiceResult();
-
-                     if (bytes.Length == 0)
-                     {
-                        result.isBcf = false;
-                        result.data = "-Empty response-";
-                     }
-                     else
-                     {
-                        result.isBcf = IsCompressedData(bytes);
-
-                        if (result.isBcf)
-                           result.data = Convert.ToBase64String(bytes);
-                        else
-                           result.data = Encoding.UTF8.GetString(bytes);
-                     }
-                     result.lastRun = DateTime.Now;
-
-                     //InsertOutput();
-                  }
-               }
-            }
+            Result.data = Encoding.UTF8.GetString(bytes);
+            Result.bcf = null;
          }
-         return result.data != null ? result.data : "Service Failed";
+         IsUpToDate = false;
       }
 
 
-      public async Task<string> RunAsync(byte[] data)
+      public Entity GetUpdatedRevitEntity()
       {
-         WebRequest myWebRequest;
-         myWebRequest = WebRequest.Create(ResourceUrl + "/" + soid.ToString());
+         // Return the entity if up-to-date
+         if (IsUpToDate)
+            return RvtEntity;
 
-         HttpWebRequest myHttpWebRequest = (HttpWebRequest)myWebRequest;
+         // Create new entity if not yet exists
+         if (RvtEntity == null)
+            RvtEntity = new Entity(RvtSchema);
+
+         // Fill the entity
+         RvtEntity.Set<string>(NameField, Name);
+         RvtEntity.Set<string>(DescriptionField, Description);
+         RvtEntity.Set<IList<string>>(InputsField, Inputs);
+         RvtEntity.Set<IList<string>>(OutputsField, Outputs);
+         RvtEntity.Set<string>(UrlField, Encrypt(Url, Password)); //only encrypted when Password is not null
+         RvtEntity.Set<string>(AuthorizationField, Encrypt(AuthorizationCode, Password)); //only encrypted when Password is not null
+//         RvtEntity.Set<int>(SoidField, Soid.Value);
+         RvtEntity.Set<string>(ProviderField, Provider.Name);
+
+         // Fill the triggers in the entity
+         List<string> triggers = new List<string>();
+         foreach (RevitEvntTrigger trigger in Triggers)
+            triggers.Add(trigger.ToString());
+         RvtEntity.Set<IList<String>>(TriggersField, triggers);
+
+         // Fill the result in the entity
+         if (Result != null)
+         {
+            RvtEntity.Set<string>(ResultTypeField, Result.isBcf ? "bcf" : "txt");
+            RvtEntity.Set<string>(ResultDataField, Result.data);
+            RvtEntity.Set<string>(LastRunField, Result.lastRun.ToString());
+         }
+
+         // Set the entity to be up-to-date and return it
+         IsUpToDate = true;
+         return RvtEntity;
+      }
+
+
+      private HttpWebRequest CreateSeviceRequest(byte[] data)
+      {
+         HttpWebRequest myHttpWebRequest = (HttpWebRequest) WebRequest.Create(Url + (Soid == 0 ? "" : "/" + Soid.ToString()));
          myHttpWebRequest.Method = "POST";
          myHttpWebRequest.Headers.Add("Input-Type", "IFC_STEP_2X3TC1");
-         myHttpWebRequest.Headers.Add("Token", srvcToken);
+         myHttpWebRequest.Headers.Add("Token", AuthorizationCode); //TO DO use token instead of AuthCode
          myHttpWebRequest.Headers.Add("Accept-Flow", "SYNC");
+         myHttpWebRequest.Timeout = 1800000; //half an hour
 
          Stream requestStream = myHttpWebRequest.GetRequestStream();
          requestStream.Write(data, 0, data.Length);
-//         Thread.Sleep(1000);
-         WebResponse response = await myHttpWebRequest.GetResponseAsync() as HttpWebResponse;
-         if (response != null)
+
+         return myHttpWebRequest;
+      }
+            
+
+      public string Run(byte[] data)
+      {
+         try
          {
+            IsRunning = true;
+            if (Soid < 0)
+            {
+               byte[] bytes = File.ReadAllBytes(KalkZandsteenResponse);
+               SetServiceResult(bytes);
+               IsRunning = false;
+               return Result.data;
+            }
+
+            HttpWebRequest request = CreateSeviceRequest(data);
+            WebResponse response = request.GetResponse() as HttpWebResponse;
             using (Stream responseStream = response.GetResponseStream())
             {
-               if (responseStream != null)
+               byte[] bytes;
+               using (MemoryStream ms = new MemoryStream())
                {
-                  //                  BinaryReader binReader = new BinaryReader(responseStream);
-                  byte[] bytes;
+                  responseStream.CopyTo(ms);
+                  bytes = ms.ToArray();
+               }
+               SetServiceResult(bytes);
+               IsRunning = false;
+               return Result.data;
+            }
+         }
+         catch (Exception e)
+         {
+            MessageBox.Show("Service '" + Name + "' fails due to :\n" + e.Message);
+         }
+         IsRunning = false;
+         return "";
+      }
 
+      
+      public async Task<string> RunAsync(byte[] data)
+      {
+         try
+         {
+            IsRunning = true;
+            if (Soid < 0)
+            {
+               byte[] bytes = File.ReadAllBytes(KalkZandsteenResponse);
+               SetServiceResult(bytes);
+               IsRunning = false;
+               return Result.data;
+            }
+            else
+            {
+               HttpWebRequest request = CreateSeviceRequest(data);
+               WebResponse response = await request.GetResponseAsync() as HttpWebResponse;
+               using (Stream responseStream = response.GetResponseStream())
+               {
+                  byte[] bytes;
                   using (MemoryStream ms = new MemoryStream())
                   {
                      await responseStream.CopyToAsync(ms);
                      bytes = ms.ToArray();
                   }
-
-                  result = new ServiceResult();
-                  if (bytes.Length == 0)
-                  {
-                     result.isBcf = false;
-                     result.data = "-Empty response-";
-                  }
-                  else
-                  {
-                     result.isBcf = IsCompressedData(bytes);
-
-                     if (result.isBcf)
-                        result.data = Convert.ToBase64String(bytes);
-                     else
-                        result.data = Encoding.UTF8.GetString(bytes);
-                  }
-                  result.lastRun = DateTime.Now;
-
-                  //InsertOutput();
+                  SetServiceResult(bytes);
+                  IsRunning = false;
+                  return Result.data;
                }
             }
          }
-         return result.data != null ? result.data : "Service Failed";
-      }
-
-
-
-      private void ExportProjectToIFC(Document doc, string path)
-      {
-         IFCExportOptions ifcOptions = new IFCExportOptions();
+         catch (Exception e)
          {
-            ifcOptions.FileVersion = IFCVersion.IFC2x3;
-            ifcOptions.WallAndColumnSplitting = false;
-            ifcOptions.SpaceBoundaryLevel = 1;
-            ifcOptions.ExportBaseQuantities = false;
-
-            ifcOptions.AddOption("ExportInternalRevitPropertySets", "false");
-            ifcOptions.AddOption("ExportIFCCommonPropertySets", "true");
-            ifcOptions.AddOption("ExportAnnotations", "false");
-            ifcOptions.AddOption("Use2DRoomBoundaryForVolume", "false");
-            ifcOptions.AddOption("UseFamilyAndTypeNameForReference", "false");
-            ifcOptions.AddOption("ExportVisibleElementsInView", "false");
-            ifcOptions.AddOption("ExportPartsAsBuildingElements", "false");
-            ifcOptions.AddOption("UseActiveViewGeometry", "false");
-            ifcOptions.AddOption("ExportSpecificSchedules", "false");
-            ifcOptions.AddOption("ExportBoundingBox", "false");
-            ifcOptions.AddOption("ExportSolidModelRep", "false");
-            ifcOptions.AddOption("ExportSchedulesAsPsets", "false");
-            ifcOptions.AddOption("ExportUserDefinedPsets", "false");
-            ifcOptions.AddOption("ExportUserDefinedParameterMapping", "false");
-            ifcOptions.AddOption("ExportLinkedFiles", "false");
-            ifcOptions.AddOption("IncludeSiteElevation", "false");
-            ifcOptions.AddOption("TessellationLevelOfDetail", "0.5");
-            ifcOptions.AddOption("StoreIFCGUID", "true");
+            MessageBox.Show("Service '" + Name + "' fails due to :\n" + e.Message);
          }
-         /*            // get the revit form and set its cursor to busy
-                     System.Windows.Forms.Control form = System.Windows.Forms.Control.FromHandle(Process.GetCurrentProcess().MainWindowHandle);
-                     if (null != form) form.Cursor = Cursors.WaitCursor;
-
-                     //RevitStatusText.Set("Exporting Revit Project to IFC");
-                     Application.DoEvents();
-         */
-         Transaction trans = new Transaction(doc, "export model");
-         trans.Start();
-
-         // revit doesn't allow the export to run in a different thread
-         doc.Export(path, "tmp.ifc", ifcOptions);
-
-         trans.Commit();
+         IsRunning = false;
+         return "";
       }
-
    }
 }

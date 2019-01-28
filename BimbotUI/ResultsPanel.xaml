@@ -14,7 +14,7 @@
             <RowDefinition Height="3"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
-        <ListView x:Name="issuesList" Grid.Row="0" SelectionChanged="IssuesList_SelectionChanged" MouseDoubleClick="IssuesList_DoubleClick">
+        <ListView x:Name="issuesList" Grid.Row="0" SelectionChanged="IssuesList_SelectionChanged" MouseDoubleClick="IssuesList_DoubleClick" ItemsSource="{Binding ResultItems}">
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid>
@@ -33,13 +33,13 @@
                             </StackPanel>
                         </Grid>
                         <Grid Grid.Row="0" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding title}" />
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding IssueData.Name}" />
                         </Grid>
                         <Grid Grid.Row="1" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding date}" />
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding IssueData.}" />
                         </Grid>
                         <Grid Grid.Row="2" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding service}" />
+                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding OfService}" />
                         </Grid>
                     </Grid>
                 </DataTemplate>

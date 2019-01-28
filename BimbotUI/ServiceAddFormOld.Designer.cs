@@ -29,6 +29,7 @@
       private void InitializeComponent()
       {
          this.groupBox2 = new System.Windows.Forms.GroupBox();
+         this.button1 = new System.Windows.Forms.Button();
          this.buttonRegister = new System.Windows.Forms.Button();
          this.listAvailableServices = new System.Windows.Forms.ListView();
          this.columnHeader1 = ((System.Windows.Forms.ColumnHeader)(new System.Windows.Forms.ColumnHeader()));
@@ -52,7 +53,7 @@
          this.label1 = new System.Windows.Forms.Label();
          this.checkedListBox1 = new System.Windows.Forms.CheckedListBox();
          this.checkBox1 = new System.Windows.Forms.CheckBox();
-         this.button1 = new System.Windows.Forms.Button();
+         this.RefreshButton = new System.Windows.Forms.Button();
          this.groupBox2.SuspendLayout();
          this.groupBox1.SuspendLayout();
          ((System.ComponentModel.ISupportInitialize)(this.trackBar2)).BeginInit();
@@ -62,6 +63,7 @@
          // groupBox2
          // 
          this.groupBox2.Controls.Add(this.button1);
+         this.groupBox2.Controls.Add(this.RefreshButton);
          this.groupBox2.Controls.Add(this.buttonRegister);
          this.groupBox2.Controls.Add(this.listAvailableServices);
          this.groupBox2.Controls.Add(this.newTrigger);
@@ -79,6 +81,16 @@
          this.groupBox2.TabIndex = 13;
          this.groupBox2.TabStop = false;
          this.groupBox2.Text = "Available Services";
+         // 
+         // button1
+         // 
+         this.button1.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+         this.button1.Location = new System.Drawing.Point(156, 451);
+         this.button1.Name = "button1";
+         this.button1.Size = new System.Drawing.Size(109, 23);
+         this.button1.TabIndex = 12;
+         this.button1.Text = "Cancel";
+         this.button1.UseVisualStyleBackColor = true;
          // 
          // buttonRegister
          // 
@@ -129,7 +141,7 @@
          this.newTrigger.Name = "newTrigger";
          this.newTrigger.Size = new System.Drawing.Size(274, 21);
          this.newTrigger.TabIndex = 5;
-         this.newTrigger.SelectedIndexChanged += new System.EventHandler(this.EnableDisableAddButton);
+         this.newTrigger.SelectedIndexChanged += new System.EventHandler(this.SetButtonState);
          // 
          // label5
          // 
@@ -176,7 +188,7 @@
          this.newToken.Name = "newToken";
          this.newToken.Size = new System.Drawing.Size(274, 20);
          this.newToken.TabIndex = 8;
-         this.newToken.TextChanged += new System.EventHandler(this.EnableDisableAddButton);
+         this.newToken.TextChanged += new System.EventHandler(this.SetButtonState);
          // 
          // newSoid
          // 
@@ -185,7 +197,7 @@
          this.newSoid.Name = "newSoid";
          this.newSoid.Size = new System.Drawing.Size(274, 20);
          this.newSoid.TabIndex = 8;
-         this.newSoid.TextChanged += new System.EventHandler(this.EnableDisableAddButton);
+         this.newSoid.TextChanged += new System.EventHandler(this.SetButtonState);
          // 
          // groupBox1
          // 
@@ -297,7 +309,6 @@
          this.checkedListBox1.Name = "checkedListBox1";
          this.checkedListBox1.Size = new System.Drawing.Size(150, 79);
          this.checkedListBox1.TabIndex = 1;
-         this.checkedListBox1.SelectedIndexChanged += new System.EventHandler(this.checkedListBox1_SelectedIndexChanged);
          // 
          // checkBox1
          // 
@@ -309,15 +320,15 @@
          this.checkBox1.Text = "Filter services";
          this.checkBox1.UseVisualStyleBackColor = true;
          // 
-         // button1
+         // RefreshButton
          // 
-         this.button1.DialogResult = System.Windows.Forms.DialogResult.Cancel;
-         this.button1.Location = new System.Drawing.Point(156, 451);
-         this.button1.Name = "button1";
-         this.button1.Size = new System.Drawing.Size(109, 23);
-         this.button1.TabIndex = 12;
-         this.button1.Text = "Cancel";
-         this.button1.UseVisualStyleBackColor = true;
+         this.RefreshButton.Location = new System.Drawing.Point(14, 347);
+         this.RefreshButton.Name = "RefreshButton";
+         this.RefreshButton.Size = new System.Drawing.Size(109, 23);
+         this.RefreshButton.TabIndex = 11;
+         this.RefreshButton.Text = "Refresh list";
+         this.RefreshButton.UseVisualStyleBackColor = true;
+         this.RefreshButton.Click += new System.EventHandler(this.RefreshButton_Click);
          // 
          // ServiceAddFormOld
          // 
@@ -366,5 +377,6 @@
       private System.Windows.Forms.Label label1;
       private System.Windows.Forms.Button buttonRegister;
       private System.Windows.Forms.Button button1;
+      private System.Windows.Forms.Button RefreshButton;
    }
 }
