@@ -24,6 +24,7 @@ namespace Bimbot
       public ExtEvntImportIfcSnippet IfcImportHandler { get; private set; }
       public ExternalEvent IfcImportEvent { get; private set; }
 
+
       public ExternalEventsContainer()
       {
          ChangeViewHandler = new ExtEvntSetViewpoint();

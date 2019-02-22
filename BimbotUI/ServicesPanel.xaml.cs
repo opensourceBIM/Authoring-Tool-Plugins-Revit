@@ -112,23 +112,42 @@ namespace Bimbot.BimbotUI
          }
       }
 
-      private void RegService(object sender, RoutedEventArgs e)
-      {
-         if (servicesList.SelectedItems.Count == 1)
-         {
-            Service CurrentService = (Service)servicesList.SelectedItem;
-            ProtectServiceWindow regWindow = new ProtectServiceWindow(CurrentService);
-            if (regWindow.ShowDialog() == true)
-            {
-               CurrentService.Protect(regWindow.Password.Text);
-            }
-         }
-      }
 
       private void ModService(object sender, RoutedEventArgs e)
       {
 
       }
+
+
+      private void ProtectService(object sender, RoutedEventArgs e)
+      {
+         if (servicesList.SelectedItems.Count == 1)
+         {
+            Service CurrentService = (Service)servicesList.SelectedItem;
+            ProtectServiceWindow ProtectWindow = new ProtectServiceWindow();
+            ProtectWindow.Title = "(Un)protect service '" + CurrentService.Name + "'";
+            if (ProtectWindow.ShowDialog() == true)
+            {
+               CurrentService.Protect(ProtectWindow.Password.Text);
+               ExtEvents.ChangeDocumentEvent.Raise();
+            }
+         }
+      }
+
+      private void UnlockServices(object sender, RoutedEventArgs e)
+      {
+         ProtectServiceWindow UnlockWindow = new ProtectServiceWindow();
+         UnlockWindow.Title = "Unlock protected Services";
+         if (UnlockWindow.ShowDialog() == true)
+         {
+            foreach (Service currentService in servicesList.Items)
+            {
+               currentService.UnProtect(UnlockWindow.Password.Text);
+            }
+         }
+      }
+
+
 
 
       private void RunSelected(object sender, RoutedEventArgs e)

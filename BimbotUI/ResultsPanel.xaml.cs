@@ -30,6 +30,7 @@ namespace Bimbot.BimbotUI
          {
             ExtEvents = extEvents;
             InitializeComponent();
+            TabControl tabctr;
          }
          catch (Exception ex)
          {
@@ -37,7 +38,7 @@ namespace Bimbot.BimbotUI
          }
       }
 
-
+      /*
       public class ServiceItem
       {
          public string title { get; set; }
@@ -47,7 +48,7 @@ namespace Bimbot.BimbotUI
          public string textData { get; set; }
          public Markup issueData { get; set; }
       }
-    
+    */
 
 /*      public void UpdateView()
       {
@@ -100,7 +101,7 @@ namespace Bimbot.BimbotUI
       }
       
 
-
+      /*
       private void IssuesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
       {
          topicItems.SelectedObject = null;
@@ -140,6 +141,7 @@ namespace Bimbot.BimbotUI
             }
          }
       }
+      */
 
       private void IssuesList_DoubleClick(object sender, MouseButtonEventArgs e)
       {
@@ -156,7 +158,7 @@ namespace Bimbot.BimbotUI
          }
       }
 
-
+      /*
       private void commentCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
       {
          if (commentCombo.SelectedItem != null)
@@ -169,7 +171,9 @@ namespace Bimbot.BimbotUI
             commentItems.SelectedObject = null;
          }
       }
+      */
 
+/*
       private void viewpointCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
       {
          if (viewpointCombo.SelectedItem != null)
@@ -186,6 +190,7 @@ namespace Bimbot.BimbotUI
             viewpointItems.SelectedObject = null;
          }
       }
+*/
 
 
       private void topicItems_SelectedPropertyItemChanged(object sender, RoutedPropertyChangedEventArgs<PropertyItemBase> e)
@@ -194,7 +199,7 @@ namespace Bimbot.BimbotUI
          if (propItem != null && propItem.PropertyName.Equals("BimSnippet") && propItem.Value != null)
          {
             BimSnippet snippet = (BimSnippet)propItem.Value;
-            Markup curMarkup = ((ServiceItem)issuesList.SelectedItems[0]).issueData;
+            Markup curMarkup = ((ResultItem)issuesList.SelectedItems[0]).IssueData;
             ExtEvents.IfcImportHandler.filePath = Path.Combine(Path.GetTempPath(), curMarkup.Topic.Guid + ".ifc");
 
             if (snippet.isExternal)

@@ -215,7 +215,7 @@ namespace Bimbot
       }
      */ 
 
-      void Application_ViewActivated(object sender, ViewActivatedEventArgs args)
+      private void Application_ViewActivated(object sender, ViewActivatedEventArgs args)
       {
          if (args.Document == null)
             return;
@@ -233,7 +233,7 @@ namespace Bimbot
       }
 
 
-      public void Application_DocumentOpened(object sender, DocumentOpenedEventArgs args)
+      private void Application_DocumentOpened(object sender, DocumentOpenedEventArgs args)
       {
          if (args.Document == null ||
              (Path.GetTempPath().StartsWith(Path.GetDirectoryName(args.Document.PathName)) &&
@@ -256,13 +256,6 @@ namespace Bimbot
             toggleButtonResults.IsEnabled = true;
             toggleButtonServices.IsChecked = true;
             toggleButtonServices.IsEnabled = true;
-
-            //Temp insert fixed service
-//            openedDocuments[args.Document].AddService(new Service(6, "Limestone Brickalizer", "Generate brick distribution for limestone walls", "ifcanalysis", null, null, null, null, "http://ec2-18-218-56-112.us-east-2.compute.amazonaws.com/"));
-//            openedDocuments[args.Document].registeredServices[0].soid = -1;
-
-//            DockableResultPanel.ShowDocument(openedDocuments[args.Document]);
-//            DockableServicesPanel.ShowDocument(openedDocuments[args.Document]);
          }
          catch (Exception e)
          {
@@ -306,6 +299,18 @@ namespace Bimbot
             btn.Image = img;
 			}
 		}
+
+      public static void UpdateDocument(Document doc)
+      {
+         // If document exists it is already opened
+         if (openedDocuments.ContainsKey(doc))
+         {
+            BimbotDocument curDoc = openedDocuments[doc];
+
+            curApp.ExtEvents.ChangeDocumentHandler.documentToUpdate = curDoc;
+            curApp.ExtEvents.ChangeDocumentEvent.Raise();
+         }
+      }
 
    }
 }

@@ -26,7 +26,7 @@ namespace Bimbot.BimbotUI
    /// <summary>
    /// Interaction logic for ServiceAddWindow.xaml
    /// </summary>
-   public partial class ServiceAddWindow : Window, INotifyPropertyChanged
+   public partial class ServiceAddWindow : Window
    {
       public static readonly Dictionary<string, RevitEvntTrigger> textToTrigger = new Dictionary<string, RevitEvntTrigger>
       {
@@ -40,29 +40,11 @@ namespace Bimbot.BimbotUI
          {"all",                      RevitEvntTrigger.all }
       };
 
-      public event PropertyChangedEventHandler PropertyChanged;
-
       public BimbotDocument CurrentBimbotDocument { get; private set; }
 
       public static ObservableCollection<Service> AvailableServices { get; set; }
-     
-
-      public RevitEvntTrigger CurrentTrigger { get; set; }
 
       public Service CurrentService { get; set; }
-      /*public Service CurrentService
-      {
-         get
-         {
-            return _CurrentService;
-         }
-         set
-         {
-            _CurrentService = value;
-            if (PropertyChanged != null) PropertyChanged(this, new PropertyChangedEventArgs("CurrentService"));
-         }
-      }
-      */
 
 
       public ServiceAddWindow(BimbotDocument document)
@@ -171,6 +153,9 @@ namespace Bimbot.BimbotUI
 
       public void ReUseAuthorizedProviders(BimbotDocument document)
       {
+         if (document.RegisteredProviders == null)
+            return;
+
          foreach (Service service in AvailableServices)
          {
             if (document.RegisteredProviders.ContainsKey(service.Provider.Name))
@@ -202,41 +187,14 @@ namespace Bimbot.BimbotUI
 
 
 
-      private void SetButtonState(object sender, EventArgs e)
-      {
-         // enable or disable the add button 
-         ButtonAdd.IsEnabled = (CurrentService != null &&
-                                !newTrigger.Text.Equals("") &&
-                                (!newToken.Text.Equals("") ||
-                                 CurrentService.Name.Equals("Bricker BIM Bot"))); // Special for the Bricker BIM BOT
-
-         // enable or disable the registrate button
-         ButtonAuthorize.IsEnabled = (CurrentService != null &&
-                                      !CurrentService.Name.Equals("Bricker BIM Bot"));
-      }
-
-
-      /*
-            private void listAvailableServices_SelectedIndexChanged(object sender, EventArgs e)
-            {
-               if (ListServices.SelectedItems.Count != 1)
-               {
-                  newSoid.Text = "";
-                  newToken.Text = "";
-               }
-               SetButtonState(sender, e);
-            }
-      */
-
 
       private void buttonAuthorize_Click(object sender, RoutedEventArgs e)
       {
          try
          {
+            // Register this document at the provider if not done before (sets the ClientID)
             if (CurrentService.Provider.ClientId == "")
-            {
                CurrentService.Provider.RegisterForDocument(CurrentBimbotDocument);
-            }
 
             string url = CurrentService.Provider.AuthorizeUrl + "?redirect_uri=SHOW_CODE&auth_type=service&response_type=code";
             url += "&client_id=" + CurrentService.Provider.ClientId + "&state=%7B%22_serviceName%22%3A%22" + CurrentService.Name + "%22%7D";
@@ -253,10 +211,14 @@ namespace Bimbot.BimbotUI
 
       private void AddServiceClick(object sender, RoutedEventArgs e)
       {
-//         CurrentService.SetSoid(newSoid.Text.Equals("") ? -1 : Convert.ToInt32(newSoid.Text));
+         // Register this document at the provider if not done before (sets the ClientID)
+         // Needed when authorization code is given by user without pressing the Authorize button
+         if (CurrentService.Provider.ClientId == "")
+            CurrentService.Provider.RegisterForDocument(CurrentBimbotDocument);
+
          CurrentService.AddTrigger(textToTrigger[newTrigger.Text]);
          CurrentService.SetAutherizationCode(newToken.Text);
-//         CurrentService.AddUser(new Bimbot.Objects.User(newToken.Text));
+         CurrentService.SetIfcExportConfiguration(((IFCExportConfigurationCustom)newConfiguration.SelectedItem).Name);
 
          DialogResult = true;
       }

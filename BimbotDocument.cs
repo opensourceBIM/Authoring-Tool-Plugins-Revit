@@ -107,7 +107,7 @@ namespace Bimbot
       public ObservableCollection<Service> AssignedServices { get; set; }
       public ObservableCollection<Service> AvailableServices { get; set; }
       public ObservableCollection<ResultItem> ResultItems { get; set; }
-
+      
 
       private List<Task> Tasks { get; }
       private CancellationTokenSource cancellationToken;
@@ -116,7 +116,7 @@ namespace Bimbot
       {
          RvtDocument = document;
          Name = RvtDocument.PathName.Substring(RvtDocument.PathName.LastIndexOf('\\') + 1);
-         
+
          RegisteredProviders = new Dictionary<string, Provider>();
          AssignedServices = new ObservableCollection<Service>();
          ResultItems = new ObservableCollection<ResultItem>();
@@ -138,25 +138,13 @@ namespace Bimbot
             foreach (Entity serviceEnt in services)
             {
                Service readService = new Service(serviceEnt, RegisteredProviders);
+               readService.InitResults(ResultItems);
                AssignedServices.Add(readService);
-
-               //add results to this document
-               if (readService.Result != null)
-               {
-                  if (readService.Result.isBcf)
-                  {
-                     //Set markups to interface
-                     foreach (KeyValuePair<string, Markup> entry in readService.Result.bcf.markups)
-                        ResultItems.Add(new ResultItem(readService, entry.Value));
-                  }
-                  else
-                     ResultItems.Add(new ResultItem(readService));
-               }
             }
          }
          else
             RvtEntity = null;
-
+         
          IsUpToDate = true;
       }
 
@@ -167,6 +155,7 @@ namespace Bimbot
          {
             // Add the provider and service in memory
             AssignedServices.Add(service);
+            service.InitResults(ResultItems);
 //            service.AssignOrCreateProvider(RegisteredProviders); 
          }
          catch (Exception e)
@@ -180,6 +169,7 @@ namespace Bimbot
       {
 //         if (runningServices.Contains(service))
          AssignedServices.Remove(service);
+         service.CleanResults();
          //Provider is not removed since the registration remains valid even without services using it
       }
 

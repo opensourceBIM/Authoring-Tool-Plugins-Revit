@@ -26,6 +26,11 @@ namespace Bimbot.ExternalEvents
       /// <param name="app"></param>
       public void Execute(UIApplication app)
       {
+/*         foreach (Service serv in documentToUpdate.AssignedServices)
+         {
+            serv.UpdateResults();
+         }
+*/
          documentToUpdate.WriteToRevit();
       }
  

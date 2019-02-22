@@ -9,6 +9,46 @@
         Title="Dockable Dialogs"  Height="500" Width="235"
         x:Name="RevitBimbot" Background="{DynamicResource {x:Static SystemColors.MenuBarBrushKey}}"
     >
+    <Page.Resources>
+        <Style x:Key="ImageUnlockedOnly" TargetType="{x:Type Image}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedItem, ElementName=servicesList}" Value="{x:Null}">
+                    <Setter Property="Opacity" Value="0.5" />
+                </DataTrigger>                
+                <DataTrigger Binding="{Binding SelectedItem.UrlIsValid, ElementName=servicesList}" Value="false">
+                    <Setter Property="Opacity" Value="0.5"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ButtonUnlockedOnly" TargetType="Button">
+            <Setter Property="Padding" Value="0"/>
+            <!--Setter Property="IsEnabled" Value="{Binding SelectedItem.UrlIsValid, ElementName=servicesList}"/-->
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding SelectedItem, ElementName=servicesList}" Value="{x:Null}">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding SelectedItem.IsEncoded, ElementName=servicesList}" Value="true">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>            
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ImageEmptyList" TargetType="{x:Type Image}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Items.Count, ElementName=servicesList}" Value="0">
+                    <Setter Property="Opacity" Value="0.5" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ButtonEmptyList" TargetType="Button">
+            <Setter Property="Padding" Value="0"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Items.Count, ElementName=servicesList}" Value="0">
+                    <Setter Property="IsEnabled" Value="False"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+    </Page.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -19,19 +59,22 @@
             <Button x:Name="AddButton" ToolTip="Add service" Click="AddService" Padding="0">
                 <Image Source="../Resources/Add.png"/>
             </Button>
-            <Button ToolTip="Remove service" Click="DelService" Padding="0">
-                <Image x:Name="DelButton" Source="../Resources/Remove.png"/>
+            <Button x:Name="DelButton" ToolTip="Remove service" Click="DelService"  Style="{DynamicResource ButtonUnlockedOnly}">
+                <Image Source="../Resources/Remove.png" Style="{DynamicResource ImageUnlockedOnly}"/>
             </Button>
-            <Button ToolTip="Change service" Click="ModService" Padding="0">
-                <Image x:Name="EditButton" Source="../Resources/Modify.png" Width="24"/>
+            <Button x:Name="EditButton" ToolTip="Change service" Click="ModService" Style="{DynamicResource ButtonUnlockedOnly}">
+                <Image Source="../Resources/Modify.png" Style="{DynamicResource ImageUnlockedOnly}"/>
             </Button>
-            <Button ToolTip="Authorize service" Click="RegService" Padding="0">
-                <Image x:Name="RegButton" Source="../Resources/Register.png" Width="24"/>
-            </Button>            
+            <Button x:Name="UnlockButton" ToolTip="Unlock protected services" Click="UnlockServices" Style="{DynamicResource ButtonEmptyList}">
+                <Image Source="../Resources/Unprotect.png" Style="{DynamicResource ImageEmptyList}"/>
+            </Button>
+            <Button x:Name="ProtectButton" ToolTip="Change protection" Click="ProtectService" Style="{DynamicResource ButtonUnlockedOnly}">
+                <Image Source="../Resources/Protect.png" Style="{DynamicResource ImageUnlockedOnly}"/>
+            </Button>
 
             <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" />
-            <Button Content="Run" Click="RunSelected"/>
-            <Button Content="All" Click="RunAll"/>
+            <Button Content="Run" Click="RunSelected" Style="{DynamicResource ButtonUnlockedOnly}"/>
+            <Button Content="All" Click="RunAll" Style="{DynamicResource ButtonEmptyList}"/>
         </ToolBar>
         <ListView x:Name ="servicesList" Grid.Row="1" HorizontalContentAlignment="Stretch" ItemsSource="{Binding AssignedServices}">
             <ListView.ItemTemplate>
@@ -50,11 +93,11 @@
                         </StackPanel>
                         <StackPanel Grid.Column="2" Margin="2" HorizontalAlignment="Left">
                             <WrapPanel>
-                                <Ellipse Fill="{Binding ProtectedColor}" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
+                                <Ellipse Fill="{Binding IsEncodedColor}" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
                                 <Label Padding="0" FontSize="8" Content="Authorized"/>
                             </WrapPanel>
                             <WrapPanel>
-                                <Ellipse Fill="{Binding RunningColor}" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
+                                <Ellipse Fill="{Binding IsRunningColor}" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
                                 <Label Padding="0" FontSize="8" Content="Running"/>
                             </WrapPanel>
                             <Label Padding="0" HorizontalAlignment="left" FontSize="8" Content="{Binding result.lastRun}"/>

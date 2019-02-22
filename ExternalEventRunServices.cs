@@ -1,4 +1,6 @@
-﻿using System;
+﻿extern alias IFCExportUIOverride;
+
+using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.IO;
@@ -12,6 +14,7 @@ using Autodesk.Revit.UI;
 using Bimbot.BimbotUI;
 using Bimbot.Objects;
 using Bimbot.Utils;
+using IFCExportUIOverride::BIM.IFC.Export.UI;
 // ReSharper disable UnusedMember.Global
 
 namespace Bimbot.ExternalEvents
@@ -20,24 +23,52 @@ namespace Bimbot.ExternalEvents
    public class ExtEvntRunServices : IExternalEventHandler
    {
       public List<Service> services = new List<Service>();
+      public ExternalEventsContainer extEvents;
+
       private CancellationTokenSource cts;
       private BackgroundWorker bgw;
+      private Document doc;
       
 
       public void Execute(UIApplication app)
       {
-         Document doc = app.ActiveUIDocument.Document;
+         doc = app.ActiveUIDocument.Document;
          try
          {
-            // Create ifc-file for service
-            string filename = IfcUtils.ExportProjectToIFC(doc);
-            byte[] data = File.ReadAllBytes(filename);
-            File.Delete(filename);
+            Dictionary<string, byte[]> ifcData = new Dictionary<string, byte[]>();
+            foreach (Service service in services)
+            {
+               // Skip creation of ifcData generation when this already exists
+               // (checked by ifcexportconfiguration name of the service)
+               // 
+               if (ifcData.ContainsKey(service.IfcExportConfiguration))
+                  continue;
+
+               // Export to IFC according to all used Ifc export configurations
+               IFCExportConfigurationsMapCustom configurationsMap = new IFCExportConfigurationsMapCustom();
+               foreach (IFCExportConfigurationCustom config in configurationsMap.Values)
+               {
+                  if (config.Name.Equals(service.IfcExportConfiguration))
+                  {
+                     IFCExportOptions IFCOptions = new IFCExportOptions();
+                     
+                     //Get the current view Id, or -1 if you want to export the entire model
+                     config.ActiveViewId = -1;
+
+                     //Update the IFCExportOptions
+                     config.UpdateOptions(IFCOptions, null);
+
+                     string filename = IfcUtils.ExportProjectToIFC(doc, IFCOptions);
+                     ifcData.Add(config.Name, File.ReadAllBytes(filename));
+                     File.Delete(filename);
+                  }
+               }
+            }
 
             BackgroundWorker bgw = new BackgroundWorker();
             bgw.DoWork += new DoWorkEventHandler(bgWorker_DoWork);
             bgw.RunWorkerCompleted += new RunWorkerCompletedEventHandler(bgWorker_Completed);
-            bgw.RunWorkerAsync(new Tuple<Document, byte[]>(doc, data));
+            bgw.RunWorkerAsync(new Tuple<Document, Dictionary<string, byte[]>>(doc, ifcData));
          }
          catch (Exception e)
          {
@@ -48,7 +79,7 @@ namespace Bimbot.ExternalEvents
 
       private void bgWorker_DoWork(object sender, DoWorkEventArgs e)
       {
-         Tuple<Document, byte[]> args = (Tuple<Document, byte[]>)e.Argument;
+         Tuple<Document, Dictionary<string,byte[]>> args = (Tuple<Document, Dictionary<string, byte[]>>)e.Argument;
          cts = new CancellationTokenSource();
 
          //RunServices(args.Item1, args.Item2, cts.Token);
@@ -66,12 +97,12 @@ namespace Bimbot.ExternalEvents
          }
          else
          {
-//            Bimbot.RevitBimbot.UpdateResultPanel();
+            Bimbot.RevitBimbot.UpdateDocument(doc);
             MessageBox.Show("Finished all services!");
          }
       }
 
-      private async Task RunServicesAsync(Document doc, byte[] data, CancellationToken ct)
+      private async Task RunServicesAsync(Document doc, Dictionary<string,byte[]> data, CancellationToken ct)
       {
          Dictionary<Task<String>, Service> taskToService = new Dictionary<Task<String>, Service>();
          List<Task<String>> tasks = new List<Task<String>>();
@@ -79,20 +110,27 @@ namespace Bimbot.ExternalEvents
          // Create list of tasks from services to run 
          foreach (Service curService in services)
          {
-            Task<string> task = curService.RunAsync(data);
+            // 
+            if (!data.ContainsKey(curService.IfcExportConfiguration))
+            {
+               MessageBox.Show(curService.Name + " not executed due to unavailable \n" +
+                               "ifc export configuration (" + curService.IfcExportConfiguration + ")");
+               break;
+            }
+
+            Task<string> task = curService.RunAsync(data[curService.IfcExportConfiguration]);
             tasks.Add(task);
             taskToService.Add(task, curService);
          }
-//         MessageBox.Show("External services Started!");
 
          // Excute tasks (services) and handle the first to finish
          while (tasks.Count > 0)
          {
             Task<String> firstFinishedTask = await Task.WhenAny(tasks);
             Service curService = taskToService[firstFinishedTask];
+
             tasks.Remove(firstFinishedTask);
             taskToService.Remove(firstFinishedTask);
-            //String res = await firstFinishedTask;
 //            MessageBox.Show("Finished task '" + curService.Name + "' with response: \n" + res.Substring(0, 300));
          }
       }
@@ -102,8 +140,6 @@ namespace Bimbot.ExternalEvents
       {
          Dictionary<Task<String>, Service> taskToService = new Dictionary<Task<String>, Service>();
          List<Task<String>> tasks = new List<Task<String>>();
-
-//         MessageBox.Show("External services Started, one by one!");
 
          // Create list of tasks from services to run
          foreach (Service curService in services)

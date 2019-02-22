@@ -14,6 +14,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
 using System.Security.Cryptography;
+using System.Collections.ObjectModel;
+using System.Threading;
 
 namespace Bimbot.Objects
 {
@@ -29,7 +31,7 @@ namespace Bimbot.Objects
       private const string OutputsField = "Outputs";
       private const string UrlField = "Url";
       private const string AuthorizationField = "Code";
-      //      private const string SoidField = "Soid";
+      private const string IfcConfigurationField = "IfcExport";
       private const string ProviderField = "Provider";
       private const string TriggersField = "Triggers";
       private const string ResultTypeField = "ResultType";
@@ -93,15 +95,14 @@ namespace Bimbot.Objects
             rijndael.Key = pdb.GetBytes(32);
             rijndael.IV = cypher.Take(16).ToArray();
 
-            using (MemoryStream memoryStream = new MemoryStream())
+            using (MemoryStream memoryStream = new MemoryStream(cypher.Skip(16).ToArray()))
             {
-               using (CryptoStream cryptoStream = new CryptoStream(memoryStream, rijndael.CreateDecryptor(), CryptoStreamMode.Write))
+               using (CryptoStream cryptoStream = new CryptoStream(memoryStream, rijndael.CreateDecryptor(), CryptoStreamMode.Read))
                {
-                  using (StreamWriter swDecrypt = new StreamWriter(cryptoStream))
+                  using (StreamReader swDecrypt = new StreamReader(cryptoStream))
                   {
-                     swDecrypt.Write(cypher.Skip(16).ToArray());
+                     decrypted = swDecrypt.ReadToEnd();
                   }
-                  decrypted = Convert.ToBase64String(memoryStream.ToArray());
                }
             }
          }
@@ -151,12 +152,12 @@ namespace Bimbot.Objects
                fieldBldr.SetDocumentation("Url of the service.");
                fieldBldr = serviceBldr.AddArrayField(TriggersField, typeof(string));
                fieldBldr.SetDocumentation("List of triggers that activate the service.");
-//               fieldBldr = serviceBldr.AddSimpleField(SoidField, typeof(int));
-//               fieldBldr.SetDocumentation("Soid of the service.");
                fieldBldr = serviceBldr.AddSimpleField(ProviderField, typeof(string));
                fieldBldr.SetDocumentation("Name of the Provider of the service.");
                fieldBldr = serviceBldr.AddSimpleField(AuthorizationField, typeof(string));
                fieldBldr.SetDocumentation("Code used for authorizing the service.");
+               fieldBldr = serviceBldr.AddSimpleField(IfcConfigurationField, typeof(string));
+               fieldBldr.SetDocumentation("IFC export configuration used when running the service.");
 
                fieldBldr = serviceBldr.AddSimpleField(LastRunField, typeof(string));
                fieldBldr.SetDocumentation("Last date the service was executed.");
@@ -192,11 +193,16 @@ namespace Bimbot.Objects
       #region Service only Attributes (not in JSON)
       public Entity RvtEntity { get; private set; }
       public Provider Provider { get; private set; }
-      public int? Soid { get; private set; }
       public string AuthorizationCode { get; private set; }
+      public string IfcExportConfiguration { get; private set; }
 
       public List<RevitEvntTrigger> Triggers { get; }
       public ServiceResult Result { get; private set; }
+
+//      public ObservableCollection<ResultItem> ResultItems { get; set; }
+      private ObservableCollection<ResultItem> DocResultItems { get; set; }
+
+      private SynchronizationContext ViewContext;
 
       private string Password;
 
@@ -211,10 +217,19 @@ namespace Bimbot.Objects
             {
                this._isRunning = value;
                this.NotifyPropertyChanged("IsRunning");
+               this.NotifyPropertyChanged("RunningColor");
             }
          }
       }
-     
+
+      public bool IsEncoded
+      {
+         get
+         {
+            return !Url.StartsWith("http://") && !Url.StartsWith("https://");
+         }
+      }
+
       public event PropertyChangedEventHandler PropertyChanged;
 
       public void NotifyPropertyChanged(string propName)
@@ -224,36 +239,30 @@ namespace Bimbot.Objects
       }
 
       //TODO IFC export settings (configuration of the exporter)
-
       // UI visualization getters (conversion)
-      public string Icon
+      public Brush IsEncodedColor
       {
          get
          {
-            return Url == null || Provider.Icon == null ? "" :
-               (Provider.Icon.StartsWith("http") ? Provider.Icon :
-               Url.Substring(0, Url.IndexOf('/', 9)) + Provider.Icon);
+            return IsEncoded ? new SolidColorBrush(Colors.Red) : new SolidColorBrush(Colors.Green);
          }
       }
 
-      private bool UrlIsValid()
-      {
-         return Url.StartsWith("http://") || Url.StartsWith("https://");
-      }
-
-      public Brush ProtectedColor
-      {
-         get
-         {
-            return (UrlIsValid()) ? new SolidColorBrush(Colors.Green) : new SolidColorBrush(Colors.Red);
-         }
-      }
-
-      public Brush RunningColor
+      public Brush IsRunningColor
       {
          get
          {
             return IsRunning ? new SolidColorBrush(Colors.Green) : new SolidColorBrush(Colors.Red);
+         }
+      }
+
+      public string Icon
+      {
+         get
+         {
+            return  IsEncoded || Provider.Icon == null ? "" :
+               (Provider.Icon.StartsWith("http") ? Provider.Icon :
+               Url.Substring(0, Url.IndexOf('/', 9)) + Provider.Icon);
          }
       }
       #endregion
@@ -270,15 +279,18 @@ namespace Bimbot.Objects
          this.Description = service.Description;
          this.Inputs = new List<string>(service.Inputs);
          this.Outputs = new List<string>(service.Outputs);
-         this.Url = service.Url; // => TODO change to combination of URL and Soid
-//         this.Soid = null;       // => not needed when in URL combination
+         this.Url = service.Url; 
          this.Provider = service.Provider;
-         this.AuthorizationCode = service.AuthorizationCode; 
+         this.AuthorizationCode = service.AuthorizationCode;
+         this.IfcExportConfiguration = service.IfcExportConfiguration;
 
-         this.Triggers = new List<RevitEvntTrigger>();
+         this.Triggers = new List<RevitEvntTrigger>();        
          this.Result = null;
+//         this.ResultItems = new ObservableCollection<ResultItem>();
+
          this.IsUpToDate = false;
          this.IsRunning = false;
+         ViewContext = SynchronizationContext.Current;
       }
 
       // JSON constructor
@@ -292,14 +304,16 @@ namespace Bimbot.Objects
          this.Inputs = inputs;
          this.Outputs = outputs;
          this.Url = resourceUrl;
-//         this.Soid = null;
-         this.AuthorizationCode = null;
          this.Provider = new Provider(provider, providerIcon, oauth);
+         this.AuthorizationCode = null;
+         this.IfcExportConfiguration = null;
          this.Triggers = new List<RevitEvntTrigger>();
          this.Result = null;
+//         this.ResultItems = new ObservableCollection<ResultItem>();
 
          this.IsUpToDate = false;
          this.IsRunning = false;
+         ViewContext = SynchronizationContext.Current;
       }
 
 
@@ -312,10 +326,10 @@ namespace Bimbot.Objects
          this.Inputs = serviceEnt.Get<IList<string>>(InputsField);
          this.Outputs = serviceEnt.Get<IList<string>>(OutputsField);
          this.Url = serviceEnt.Get<string>(UrlField);
-         this.AuthorizationCode = serviceEnt.Get<string>(AuthorizationField);
-//         this.Soid = serviceEnt.Get<int>(SoidField);
          Debug.Assert(providers.ContainsKey(serviceEnt.Get<string>(ProviderField)));
          this.Provider = providers[serviceEnt.Get<string>(ProviderField)];
+         this.AuthorizationCode = serviceEnt.Get<string>(AuthorizationField);
+         this.IfcExportConfiguration = serviceEnt.Get<string>(IfcConfigurationField);
 
          //Read the triggers
          this.Triggers = new List<RevitEvntTrigger>();
@@ -324,6 +338,7 @@ namespace Bimbot.Objects
          
          //Read the result data (and in case of BCF parse it)
          this.Result = new ServiceResult();
+//         this.ResultItems = new ObservableCollection<ResultItem>();
          this.Result.data = serviceEnt.Get<string>(ResultDataField);
          if (Result.data != "")
          {
@@ -337,8 +352,63 @@ namespace Bimbot.Objects
 
          this.IsUpToDate = false;
          this.IsRunning = false;
+         ViewContext = SynchronizationContext.Current;
       }
       #endregion
+
+      public void InitResults(ObservableCollection<ResultItem> docResultItems)
+      {
+         DocResultItems = docResultItems;
+         if (this.Result != null)
+         {
+            if (this.Result.isBcf)
+            {
+               //Set markups to interface
+               foreach (KeyValuePair<string, Markup> entry in this.Result.bcf.markups)
+                  DocResultItems.Add(new ResultItem(this, entry.Value));
+            }
+            else
+               DocResultItems.Add(new ResultItem(this));
+         }
+      }
+
+      public void CleanResults()
+      {
+         for (int i = DocResultItems.Count() - 1; i >= 0; i--)
+            if (DocResultItems[i].OfService == this)
+               DocResultItems.RemoveAt(i);
+      }
+
+
+      #region  Change protection (encrypt fields)
+      public void Protect(string password)
+      {
+         if (password != null && password != "")
+            Password = password;
+         else
+            Password = null;
+         IsUpToDate = false;
+      }
+
+      public void UnProtect(string password)
+      {
+         // If the url starts with http it is not encrypted
+         if (!IsEncoded)
+            return;
+
+         // If the decoded Url does not start with http the password does not match
+         string decUrl = Decrypt(Url, password);
+         if (!decUrl.StartsWith("https://") && !decUrl.StartsWith("http://"))
+            return;
+
+         Url = decUrl;
+         AuthorizationCode = Decrypt(AuthorizationCode, password);
+         NotifyPropertyChanged("UrlIsValid");
+         NotifyPropertyChanged("Icon");
+         NotifyPropertyChanged("ProtectedColor");
+      }
+      #endregion
+           
 
       public void ReAssignProvider(Dictionary<string, Provider> providers)
       {
@@ -351,32 +421,10 @@ namespace Bimbot.Objects
          IsUpToDate = false;
       }
 
-
-      public void SetSoid(int soid)
-      {         
-         this.Soid = soid;
-         IsUpToDate = false;
-      }
-
-      public void Protect(string password)
+      public void SetIfcExportConfiguration(string config)
       {
-         Password = password;
+         this.IfcExportConfiguration = config;
          IsUpToDate = false;
-      }
-
-      public void UnProtect(string password)
-      {
-         // If the url starts with http it is not encrypted
-         if (!UrlIsValid())
-            return;
-
-         // If the decoded Url does not start with http the password does not match
-         string decUrl = Decrypt(Url, password);
-         if (!UrlIsValid())
-            return;
-
-         Url = decUrl;
-         AuthorizationCode = Decrypt(AuthorizationCode, password);
       }
 
       public void AddTrigger(RevitEvntTrigger trigger)
@@ -384,22 +432,35 @@ namespace Bimbot.Objects
          Triggers.Add(trigger);
          IsUpToDate = false;
       }
-
-
+          
       private void SetServiceResult(byte[] bytes)
       {
-         Result = new ServiceResult();
+         //Clear resultItems (UI model)
+         CleanResults();
+
+                  Result = new ServiceResult();
          Result.lastRun = DateTime.Now;
-         Result.isBcf = (bytes.Length >= 4 || IsCompressedData(bytes));
+         Result.isBcf = (bytes.Length >= 4 && IsCompressedData(bytes));
          if (Result.isBcf)
          {
             Result.data = Convert.ToBase64String(bytes);
             Result.bcf = new BcfFile(bytes);
+
+            //Add items for each markup in bcf
+            foreach (KeyValuePair<string, Markup> entry in this.Result.bcf.markups)
+            {
+//               ResultItems.Add(new ResultItem(this, entry.Value));
+               DocResultItems.Add(new ResultItem(this, entry.Value));
+            }
          }
          else
          {
-            Result.data = Encoding.UTF8.GetString(bytes);
             Result.bcf = null;
+            Result.data = Encoding.ASCII.GetString(bytes);
+
+            //Add one item for the result (txt)file
+//            ResultItems.Add(new ResultItem(this));
+            DocResultItems.Add(new ResultItem(this));
          }
          IsUpToDate = false;
       }
@@ -420,10 +481,20 @@ namespace Bimbot.Objects
          RvtEntity.Set<string>(DescriptionField, Description);
          RvtEntity.Set<IList<string>>(InputsField, Inputs);
          RvtEntity.Set<IList<string>>(OutputsField, Outputs);
-         RvtEntity.Set<string>(UrlField, Encrypt(Url, Password)); //only encrypted when Password is not null
-         RvtEntity.Set<string>(AuthorizationField, Encrypt(AuthorizationCode, Password)); //only encrypted when Password is not null
-//         RvtEntity.Set<int>(SoidField, Soid.Value);
          RvtEntity.Set<string>(ProviderField, Provider.Name);
+         RvtEntity.Set<string>(IfcConfigurationField, IfcExportConfiguration);
+
+         // Fill the optionally encoded fields
+         if (IsEncoded) // service is encoded in memory 
+         {
+            RvtEntity.Set<string>(UrlField, Url);
+            RvtEntity.Set<string>(AuthorizationField, Encrypt(AuthorizationCode, Password)); //only encrypted when Password is not null
+         }
+         else // service is not encoded in memory
+         {
+            RvtEntity.Set<string>(UrlField, Encrypt(Url, Password)); //only encrypted when Password is not null
+            RvtEntity.Set<string>(AuthorizationField, Encrypt(AuthorizationCode, Password)); //only encrypted when Password is not null
+         }
 
          // Fill the triggers in the entity
          List<string> triggers = new List<string>();
@@ -447,10 +518,10 @@ namespace Bimbot.Objects
 
       private HttpWebRequest CreateSeviceRequest(byte[] data)
       {
-         HttpWebRequest myHttpWebRequest = (HttpWebRequest) WebRequest.Create(Url + (Soid == 0 ? "" : "/" + Soid.ToString()));
+         HttpWebRequest myHttpWebRequest = (HttpWebRequest) WebRequest.Create(Url);
          myHttpWebRequest.Method = "POST";
          myHttpWebRequest.Headers.Add("Input-Type", "IFC_STEP_2X3TC1");
-         myHttpWebRequest.Headers.Add("Token", AuthorizationCode); //TO DO use token instead of AuthCode
+         myHttpWebRequest.Headers.Add("Token", AuthorizationCode); 
          myHttpWebRequest.Headers.Add("Accept-Flow", "SYNC");
          myHttpWebRequest.Timeout = 1800000; //half an hour
 
@@ -466,14 +537,14 @@ namespace Bimbot.Objects
          try
          {
             IsRunning = true;
-            if (Soid < 0)
+/*            if (Soid < 0)
             {
                byte[] bytes = File.ReadAllBytes(KalkZandsteenResponse);
                SetServiceResult(bytes);
                IsRunning = false;
                return Result.data;
             }
-
+*/
             HttpWebRequest request = CreateSeviceRequest(data);
             WebResponse response = request.GetResponse() as HttpWebResponse;
             using (Stream responseStream = response.GetResponseStream())
@@ -484,7 +555,8 @@ namespace Bimbot.Objects
                   responseStream.CopyTo(ms);
                   bytes = ms.ToArray();
                }
-               SetServiceResult(bytes);
+               ViewContext.Send(x => SetServiceResult(bytes), null);
+
                IsRunning = false;
                return Result.data;
             }
@@ -503,29 +575,29 @@ namespace Bimbot.Objects
          try
          {
             IsRunning = true;
-            if (Soid < 0)
+/*            if (Soid < 0)
             {
                byte[] bytes = File.ReadAllBytes(KalkZandsteenResponse);
                SetServiceResult(bytes);
                IsRunning = false;
                return Result.data;
             }
-            else
+*/
+            HttpWebRequest request = CreateSeviceRequest(data);
+            WebResponse response = await request.GetResponseAsync() as HttpWebResponse;
+            using (Stream responseStream = response.GetResponseStream())
             {
-               HttpWebRequest request = CreateSeviceRequest(data);
-               WebResponse response = await request.GetResponseAsync() as HttpWebResponse;
-               using (Stream responseStream = response.GetResponseStream())
+               byte[] bytes;
+               using (MemoryStream ms = new MemoryStream())
                {
-                  byte[] bytes;
-                  using (MemoryStream ms = new MemoryStream())
-                  {
-                     await responseStream.CopyToAsync(ms);
-                     bytes = ms.ToArray();
-                  }
-                  SetServiceResult(bytes);
-                  IsRunning = false;
-                  return Result.data;
+                  await responseStream.CopyToAsync(ms);
+                  bytes = ms.ToArray();
                }
+
+               ViewContext.Send(x => SetServiceResult(bytes), null);
+
+               IsRunning = false;
+               return Result.data;
             }
          }
          catch (Exception e)

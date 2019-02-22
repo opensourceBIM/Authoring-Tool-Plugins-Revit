@@ -298,7 +298,7 @@
       <DependentUpon>TestUIForm.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
+      <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
       <SubType>Designer</SubType>
     </EmbeddedResource>
@@ -306,17 +306,19 @@
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="PimCertificate.cer" />
-    <None Include="Resources\BIMserver-BimBot.png" />
-    <None Include="Resources\BimServerLogo.ico" />
+    <Content Include="Resources\BIMserver-BimBot.png" />
+    <Content Include="Resources\BimServerLogo.ico" />
     <Resource Include="Resources\Add.png" />
     <Resource Include="Resources\Remove.png" />
-    <None Include="Resources\Register.png" />
+    <Resource Include="Resources\Unprotect.png" />
     <Content Include="Resources\BIMserver-Info.png" />
-    <None Include="Resources\Modify.png" />
+    <Resource Include="Resources\Modify.png" />
+    <Resource Include="Resources\Protect.png" />
+    <Resource Include="Resources\Unlock.png" />
     <Content Include="RevitBimbot.addin">
       <SubType>Designer</SubType>
     </Content>
-    <None Include="Resources\BimServer.png" />
+    <Content Include="Resources\BimServer.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include="app.config" />
