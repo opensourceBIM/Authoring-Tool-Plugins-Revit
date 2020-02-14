@@ -46,13 +46,6 @@
                                         <Ellipse Fill="{Binding Provider.RegisteredColor }" HorizontalAlignment="Left" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
                                         <Label Padding="0" FontSize="8" Content="Registered"/>
                                     </WrapPanel>
-                                    <WrapPanel Grid.Row="1" Grid.Column="2" HorizontalAlignment="left">
-                                        <Ellipse Fill="{Binding RunningColor}" HorizontalAlignment="Left" Height="8" Stroke="Black" VerticalAlignment="Top" Width="8" Margin="2"/>
-                                        <Label Padding="0" FontSize="8" Content="Running"/>
-                                    </WrapPanel>
-                                    <WrapPanel Grid.Row="2" Grid.Column="2" HorizontalAlignment="left">
-                                        <Label Padding="0" FontSize="8" Content="{Binding result.lastRun}"/>
-                                    </WrapPanel>
                                 </StackPanel>
                                 <Separator Margin="-2" Grid.ColumnSpan="3" VerticalAlignment="Bottom"/>
                             </Grid>
@@ -75,11 +68,27 @@
                     </Button.Style>
                 </Button>
                 <Label Grid.Row="2" Grid.Column="0">Trigger:</Label>
-                <ComboBox x:Name="newTrigger" Grid.Row="2" Grid.Column="1" Margin="2"/>
+                <ComboBox x:Name="newTrigger" Grid.Row="2" Grid.Column="1" Margin="2" ItemsSource="{Binding TriggerList}">
+                    <ComboBox.Resources>
+                        <local:ComboboxDisableConverter x:Key="itemDisableconverter"/>
+                    </ComboBox.Resources>
+
+                    <!--ItemContainer Style for disabling Combobox Item-->
+                    <ComboBox.ItemContainerStyle>
+                        <Style TargetType="ComboBoxItem">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Path=Content, RelativeSource={RelativeSource Self},  
+                            Converter={StaticResource itemDisableconverter}}" Value="true">
+                                    <Setter Property="IsEnabled" Value="False"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ComboBox.ItemContainerStyle>
+                </ComboBox>
                 <Label Grid.Row="3" Grid.Column="0">Token:</Label>
                 <TextBox x:Name="newToken" Grid.Row="3" Grid.Column="1"  Margin="2"/>
                 <Label Grid.Row="4" Grid.Column="0">Ifc Export config:</Label>
-                <ComboBox x:Name="newConfiguration" Grid.Row="4" Grid.Column="1" Margin="2">
+                <ComboBox x:Name="newConfiguration" Grid.Row="4" Grid.Column="1" Margin="2" ItemsSource="{Binding TriggerList}">
                     <ComboBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal">

@@ -18,46 +18,35 @@
             <TextBox x:Name="fileName" Height="22" VerticalAlignment="Top"/>
             <Button x:Name="Browse1" Height="22" Click="Browse1_Click" Content="Browse"/>
         </StackPanel>
-        <ListView x:Name="issuesList" Grid.Row="1" SelectionChanged="ListView_SelectionChanged">
+        <ListView x:Name="issuesList" Grid.Row="1" SelectionMode="Single"
+                   HorizontalContentAlignment="Stretch"
+                    ItemsSource="{Binding Path=ResultItems, Mode=OneWay}" >
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="auto" />
-                            <RowDefinition Height="auto" />
-                        </Grid.RowDefinitions>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="auto" />
-                            <ColumnDefinition Width="1*" />
-                        </Grid.ColumnDefinitions>
-                        <Grid Grid.RowSpan="2" MaxWidth="75" MaxHeight="60" HorizontalAlignment="Stretch">
-                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
-                                <Image Source="{Binding Path = Viewpoints[0].SnapshotRef}" RenderOptions.BitmapScalingMode="HighQuality"  Stretch="UniformToFill" />
+                        <WrapPanel>
+                            <Image MaxWidth="75" MaxHeight="60" Source="{Binding Path=Viewpoints[0].SnapshotRef}" 
+                                    RenderOptions.BitmapScalingMode="HighQuality" Stretch="UniformToFill" />
+                            <StackPanel VerticalAlignment="Stretch">
+                                <TextBlock Margin="5,0,0,5" FontWeight="Bold" Text="{Binding Path=Topic.Title}" />
                             </StackPanel>
-                        </Grid>
-                        <Grid Grid.Row="0" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" FontWeight="Bold" Content="{Binding Path=Key}" />
-                        </Grid>
-                        <Grid Grid.Row="1" Grid.Column="1">
-                            <Label  Margin="2,2,2,0" VerticalAlignment="Bottom" Content="{Binding Path=Key}" />
-                        </Grid>
+                        </WrapPanel>
+                        <Separator VerticalAlignment="Bottom" Margin="0" Panel.ZIndex="-1"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
         <GridSplitter VerticalAlignment="Stretch" HorizontalAlignment="Stretch" Grid.Row="2" Height="3" Cursor="SizeNS"/>
-        <TextBlock x:Name="textIssue" Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
         <TabControl x:Name="bcfIssue" Grid.Row="3" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <TabItem Header="Topic">
-                <xctk:PropertyGrid x:Name="topicItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False"/>
+              <TabItem Header="Topic">
+                <xctk:PropertyGrid x:Name="topicItems" IsReadOnly="True" 
+                                   SelectedObject="{Binding ElementName=issuesList, Path=SelectedItem.Topic}"                                
+                                   ShowSearchBox="False" ShowSummary="false" ShowSortOptions="False" ShowTitle="False"/>
             </TabItem>
             <TabItem Header="Comments">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="22"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <ComboBox x:Name="commentCombo" Height="22" VerticalAlignment="Top" SelectionChanged="commentCombo_SelectionChanged">
+                <StackPanel>
+                    <ComboBox x:Name="commentCombo" SelectedIndex="0" IsSynchronizedWithCurrentItem="True"
+                              ItemsSource="{Binding ElementName=issuesList, Path=SelectedItem.Comment}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -66,16 +55,15 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
-                    <xctk:PropertyGrid Grid.Row="1" x:Name="commentItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False"/>
-                </Grid>
+                    <xctk:PropertyGrid x:Name="commentItems"  IsReadOnly="True" 
+                                       SelectedObject="{Binding ElementName=commentCombo, Path=SelectedItem}"
+                                       ShowSearchBox="False" ShowSummary="false" ShowSortOptions="False" ShowTitle="False"/>
+                </StackPanel>
             </TabItem>
             <TabItem Header="Viewpoints">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="22"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <ComboBox Grid.Row="0" x:Name="viewpointCombo" Height="22" VerticalAlignment="Top" Grid.ColumnSpan="2" SelectionChanged="viewpointCombo_SelectionChanged">
+                <StackPanel>
+                    <ComboBox x:Name="viewpointCombo" SelectedIndex="0" IsSynchronizedWithCurrentItem="True"
+                              ItemsSource="{Binding ElementName=issuesList, Path=SelectedItem.Viewpoints}">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -84,10 +72,11 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
-                    <xctk:PropertyGrid  Grid.Row="1" x:Name="viewpointItems" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" IsReadOnly="True" ShowSearchBox="False" IsCategorized="True" ShowSummary="false" ShowDescriptionByTooltip="False" ShowSortOptions="False" ShowTitle="False" Grid.ColumnSpan="2"/>
-                </Grid>
+                    <xctk:PropertyGrid x:Name="viewpointItems" IsReadOnly="True" 
+                                       SelectedObject="{Binding ElementName=viewpointCombo, Path=SelectedItem}"
+                                       ShowSearchBox="False" ShowSummary="false" ShowSortOptions="False" ShowTitle="False"/>
+                </StackPanel>
             </TabItem>
         </TabControl>
     </Grid>
-
 </Window>

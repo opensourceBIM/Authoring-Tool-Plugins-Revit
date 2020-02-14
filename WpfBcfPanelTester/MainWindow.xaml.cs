@@ -3,6 +3,7 @@ using Bimbot.Bcf.Bcf2;
 using Microsoft.Win32;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -24,6 +25,8 @@ namespace WpfBcfPanelTester
    /// </summary>
    public partial class MainWindow : Window
    {
+      public ObservableCollection<Markup> ResultItems { get; set; }
+
       public MainWindow()
       {
          InitializeComponent();
@@ -42,8 +45,10 @@ namespace WpfBcfPanelTester
          {
             byte[] fileBytes = File.ReadAllBytes(dlg.FileName);
             fileName.Text = dlg.FileName;
+            BcfFile curFile = new BcfFile(fileBytes);
+            ResultItems = new ObservableCollection<Markup>(curFile.markups.Values);
 
-            DataContext = (new BcfFile(fileBytes)).markups;
+            DataContext = this; // (new BcfFile(fileBytes)).markups;
 /*
             if (bcfFile != null)
             {
@@ -57,6 +62,7 @@ namespace WpfBcfPanelTester
          }
       }
 
+      /*
       private void ListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
       {
          if (issuesList.SelectedItems.Count == 1)

@@ -28,7 +28,57 @@ using Rvt = Autodesk.Revit.UI;
 
 namespace Bimbot
 {
-	[Transaction(TransactionMode.Manual)]
+   /// <summary> 
+   /// Show dockable dialog for Results (output)
+   /// </summary> 
+   [Transaction(TransactionMode.ReadOnly)]
+   public class ToggleResults : IExternalCommand
+   {
+      public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+      {
+         DockablePane dp = commandData.Application.GetDockablePane(RevitBimbot.OutputPaneId);
+         if (RevitBimbot.PluginToggleButtonResults.ItemText.Equals("Hide Results"))
+         {
+            RevitBimbot.PluginToggleButtonResults.ItemText = "Show Results";
+            dp.Hide();
+         }
+         else
+         {
+            RevitBimbot.PluginToggleButtonResults.ItemText =  "Hide Results";
+            dp.Show();
+         }
+         return Result.Succeeded;
+      }
+   }
+
+
+
+   /// <summary> 
+   /// Show dockable dialog for services 
+   /// </summary> 
+   [Transaction(TransactionMode.ReadOnly)]
+   public class ToggleServices : IExternalCommand
+   {
+      public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+      {
+         DockablePane dp = commandData.Application.GetDockablePane(RevitBimbot.ServicePaneId);
+         if (RevitBimbot.PluginToggleButtonServices.ItemText.Equals("Hide Services"))
+         {
+            RevitBimbot.PluginToggleButtonServices.ItemText = "Show Services";
+            dp.Hide();
+         }
+         else
+         {
+            RevitBimbot.PluginToggleButtonServices.ItemText = "Hide Services";
+            dp.Show();
+         }
+         return Result.Succeeded;
+      }
+   }
+
+
+
+   [Transaction(TransactionMode.Manual)]
 	[Regeneration(RegenerationOption.Manual)]
 	[Journaling(JournalingMode.NoCommandData)]
 	public class RevitBimbot : IExternalApplication
@@ -44,19 +94,29 @@ namespace Bimbot
       #region local app
       private static RevitBimbot curApp;
 
-      public static adWin.RibbonButton toggleButtonResults;
-      public static adWin.RibbonButton toggleButtonServices;
+      public static adWin.RibbonButton ViewToggleButtonResults;
+      public static adWin.RibbonButton ViewToggleButtonServices;
+      public static RibbonItem PluginToggleButtonResults;
+      public static RibbonItem PluginToggleButtonServices;
+
+      public static RevitBimbot Instance
+      {
+         get { return curApp; }
+      }
 
       #endregion
 
       #region fields
       UIControlledApplication uiApplication;
       public ExternalEventsContainer ExtEvents { get; private set; }
-      
-      ResultsPanel DockableResultPanel = null;
-      DockablePane outputPane;
-      ServicesPanel DockableServicesPanel = null;
-      DockablePane servicePane;
+
+      private ResultsPanel DockableResultPanel = null;
+      private DockablePane outputPane;
+      private ServicesPanel DockableServicesPanel = null;
+      private DockablePane servicePane;
+
+
+
 
       private static Dictionary<Document, BimbotDocument> openedDocuments = new Dictionary<Document, BimbotDocument>();
       #endregion fields
@@ -80,6 +140,17 @@ namespace Bimbot
             PushButton pushButton = panel.AddItem(new PushButtonData("BIMBot", "About BIM Bot", Assembly.GetExecutingAssembly().Location, "Bimbot.AboutAddin")) as PushButton;
             SetImage(pushButton, Properties.Resources.BIMserver_BimBot);
 
+            PluginToggleButtonResults = panel.AddItem(new PushButtonData("ToggleResults", "Hide Results", Assembly.GetExecutingAssembly().Location, "Bimbot.ToggleResults"));
+            SetImage(PluginToggleButtonResults as PushButton, Properties.Resources.BIMserver_BimBot);
+            PluginToggleButtonResults.ToolTip = "Toggles the window results";
+            PluginToggleButtonResults.LongDescription = "Showing or hiding the last responses of the BIM Bot services performed";
+
+            PluginToggleButtonServices = panel.AddItem(new PushButtonData("ToggleServices", "Hide Services", Assembly.GetExecutingAssembly().Location, "Bimbot.ToggleServices"));
+            SetImage(PluginToggleButtonServices as PushButton, Properties.Resources.BIMserver_BimBot);
+            PluginToggleButtonServices.ToolTip = "Toggles the window services";
+            PluginToggleButtonServices.LongDescription = "Showing or hiding the BIM Bot services assigned to this Revit project";
+
+
 
             // Create The DockablePanels for showing the service results and services
             DockableResultPanel = new ResultsPanel(ExtEvents);
@@ -94,22 +165,22 @@ namespace Bimbot
                                                     Where(b => b.Id.Equals("HID_APPLICATION_ELEMENTS_RibbonListButton")).First();
 
             // Add the bimbot result view activation button
-            toggleButtonResults = new adWin.RibbonToggleButton();
-            toggleButtonResults.Name = "Bimbot output";
-//            toggleButtonResults.Id = "ID_RESULT_BUTTON";
-            toggleButtonResults.IsEnabled = false;
-            toggleButtonResults.ToolTip = "Show the Bimbots output panel";
-            toggleButtonResults.PropertyChanged += new PropertyChangedEventHandler(toggleButtonResult_PropertyChanged);
-            listBut.Items.Insert(listBut.Items.Count - 3, toggleButtonResults);
+            ViewToggleButtonResults = new adWin.RibbonToggleButton();
+            ViewToggleButtonResults.Name = "Bimbot output";
+//            ViewToggleButtonResults.Id = "ID_RESULT_BUTTON";
+            ViewToggleButtonResults.IsEnabled = false;
+            ViewToggleButtonResults.ToolTip = "Show the Bimbots output panel";
+            ViewToggleButtonResults.PropertyChanged += new PropertyChangedEventHandler(toggleButtonResult_PropertyChanged);
+            listBut.Items.Insert(listBut.Items.Count - 3, ViewToggleButtonResults);
 
             // Add the bimbot service view activation button
-            toggleButtonServices = new adWin.RibbonToggleButton();
-            toggleButtonServices.Name = "Bimbot services";
-//            toggleButtonServices.Id = "ID_SERVICE_BUTTON";
-            toggleButtonServices.IsEnabled = false;
-            toggleButtonServices.ToolTip = "Show the Bimbots services panel";
-            toggleButtonServices.PropertyChanged += new PropertyChangedEventHandler(toggleButtonService_PropertyChanged);
-            listBut.Items.Insert(listBut.Items.Count - 3, toggleButtonServices);
+            ViewToggleButtonServices = new adWin.RibbonToggleButton();
+            ViewToggleButtonServices.Name = "Bimbot services";
+//            ViewToggleButtonServices.Id = "ID_SERVICE_BUTTON";
+            ViewToggleButtonServices.IsEnabled = false;
+            ViewToggleButtonServices.ToolTip = "Show the Bimbots services panel";
+            ViewToggleButtonServices.PropertyChanged += new PropertyChangedEventHandler(toggleButtonService_PropertyChanged);
+            listBut.Items.Insert(listBut.Items.Count - 3, ViewToggleButtonServices);
 
             // Set the event handler to handle te view activation buttons
 //            adWin.ComponentManager.UIElementActivated += new EventHandler<adWin.UIElementActivatedEventArgs>(ComponentManager_UIElementActivated);
@@ -146,18 +217,8 @@ namespace Bimbot
          return Rvt.Result.Succeeded;
       }
 
-/*
-      public static void UpdateServicesPanel()
-      {
-  //       curApp.DockableServicesPanel.UpdateView();         
-      }
 
 
-      public static void UpdateResultPanel()
-      {
-//         curApp.DockableResultPanel.UpdateView();
-      }
-*/
 
       void toggleButtonResult_PropertyChanged(object sender, PropertyChangedEventArgs e)
       {
@@ -185,9 +246,9 @@ namespace Bimbot
       void Application_DockableFrameVisibilityChanged(object sender, DockableFrameVisibilityChangedEventArgs e)
       {
          if (e.PaneId == OutputPaneId)
-            toggleButtonResults.IsChecked = e.DockableFrameShown;
+            ViewToggleButtonResults.IsChecked = e.DockableFrameShown;
          else if (e.PaneId == ServicePaneId)
-            toggleButtonServices.IsChecked = e.DockableFrameShown;
+            ViewToggleButtonServices.IsChecked = e.DockableFrameShown;
       }
 
 /*
@@ -252,10 +313,10 @@ namespace Bimbot
             //            ActiveDocument = curApp.openedDocuments[args.Document];
             outputPane = uiApplication.GetDockablePane(OutputPaneId);
             servicePane = uiApplication.GetDockablePane(ServicePaneId);
-            toggleButtonResults.IsChecked = true;
-            toggleButtonResults.IsEnabled = true;
-            toggleButtonServices.IsChecked = true;
-            toggleButtonServices.IsEnabled = true;
+            ViewToggleButtonResults.IsChecked = true;
+            ViewToggleButtonResults.IsEnabled = true;
+            ViewToggleButtonServices.IsChecked = true;
+            ViewToggleButtonServices.IsEnabled = true;
          }
          catch (Exception e)
          {

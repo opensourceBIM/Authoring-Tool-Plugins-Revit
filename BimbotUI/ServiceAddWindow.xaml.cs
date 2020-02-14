@@ -23,6 +23,26 @@ using System.Windows.Shapes;
 
 namespace Bimbot.BimbotUI
 {
+   // Converter for disabling ComboboxItem
+   public class ComboboxDisableConverter : IValueConverter
+   {
+      public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+      {
+         if (value == null)
+            return value;
+         // You can add your custom logic here to disable combobox item
+         if (!value.Equals("button"))
+            return true;
+
+         return false;
+      }
+
+      public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
+      {
+         throw new NotImplementedException();
+      }
+   }
+
    /// <summary>
    /// Interaction logic for ServiceAddWindow.xaml
    /// </summary>
@@ -39,6 +59,10 @@ namespace Bimbot.BimbotUI
          {"committed transaction",    RevitEvntTrigger.transactionCommitted },
          {"all",                      RevitEvntTrigger.all }
       };
+
+
+
+
 
       public BimbotDocument CurrentBimbotDocument { get; private set; }
 
@@ -67,7 +91,7 @@ namespace Bimbot.BimbotUI
          newTrigger.Items.Clear();
          foreach (string key in textToTrigger.Keys)
          {
-            newTrigger.Items.Add(key);
+            newTrigger.Items.Add(key);           
          }
 
          // Fill the combobox of configurations
@@ -222,5 +246,6 @@ namespace Bimbot.BimbotUI
 
          DialogResult = true;
       }
+
    }
 }
